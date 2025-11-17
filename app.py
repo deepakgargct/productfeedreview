@@ -5,30 +5,45 @@ from datetime import datetime, timezone
 from urllib.parse import urlparse
 import re
 import pandas as pd
+import requests
+from typing import Any, Dict, List, Tuple, Optional
 
-# -----------------------------------------------------------
-# Helper validation functions
-# -----------------------------------------------------------
+# =========================================================
+# Streamlit Page Setup
+# =========================================================
+st.set_page_config(page_title="OpenAI Product Feed Validator", layout="wide")
+st.title("🛍️ OpenAI Product Feed Validator")
+st.write("Upload a **JSON or XML feed** to validate it against OpenAI's Product Feed Specification.")
 
-def is_url(s):
+
+# =========================================================
+# Helper Functions
+# =========================================================
+def is_url(s: Optional[str]) -> bool:
+    if not s:
+        return False
     try:
-        p = urlparse(s)
+        p = urlparse(str(s))
         return p.scheme in ("http", "https") and bool(p.netloc)
     except:
         return False
 
-def is_iso8601_date(s):
+
+def is_iso8601_date(s: Optional[str]) -> bool:
+    if not s:
+        return False
     try:
-        datetime.fromisoformat(s)
+        datetime.fromisoformat(str(s))
         return True
     except:
         try:
-            datetime.strptime(s, "%Y-%m-%d")
+            datetime.strptime(str(s), "%Y-%m-%d")
             return True
         except:
             return False
 
-def parse_iso_date(s):
+
+def parse_iso_date(s: str) -> Optional[datetime]:
     try:
         return datetime.fromisoformat(s)
     except:
@@ -37,165 +52,232 @@ def parse_iso_date(s):
         except:
             return None
 
-def is_positive_integer_str(s):
+
+def is_positive_integer_str(s: Any) -> bool:
     try:
         return int(s) >= 0
     except:
         return False
 
-def extract_price_and_currency(value):
-    if not value:
-        return None, None
-    value = str(value).strip()
 
-    m = re.match(r"^\s*([0-9]+(?:\.[0-9]+)?)\s*([A-Z]{3})?\s*$", value)
+def extract_price_and_currency(value: Optional[str]) -> Tuple[Optional[float], Optional[str]]:
+    if value is None:
+        return None, None
+
+    s = str(value).strip()
+    m = re.match(r"^\s*([0-9]+(?:\.[0-9]+)?)\s*([A-Z]{3})?\s*$", s)
     if m:
         return float(m.group(1)), m.group(2)
-    return None, None
+
+    # Try JSON-like price structure
+    try:
+        parsed = json.loads(s)
+        if isinstance(parsed, dict) and "value" in parsed:
+            return float(parsed["value"]), parsed.get("currency")
+    except:
+        pass
+
+    # Fallback token parse
+    parts = s.split()
+    if len(parts) == 0:
+        return None, None
+    try:
+        val = float(parts[0])
+        cur = parts[1] if len(parts) > 1 else None
+        return val, cur
+    except:
+        return None, None
 
 
-# -----------------------------------------------------------
-# Load JSON or XML feed
-# -----------------------------------------------------------
-def load_feed(file):
-    name = file.name.lower()
+# =========================================================
+# Feed Loading (JSON + XML)
+# =========================================================
+def extract_products_from_json(obj: Any) -> List[Dict[str, Any]]:
+    if isinstance(obj, list) and all(isinstance(i, dict) for i in obj):
+        return obj
+
+    if isinstance(obj, dict):
+        for key in ("products", "items", "feed", "entries", "data"):
+            if key in obj and isinstance(obj[key], list):
+                return obj[key]
+
+    # BFS fallback search for list-of-dicts
+    queue = [obj]
+    seen = set()
+    while queue:
+        cur = queue.pop(0)
+        if id(cur) in seen:
+            continue
+        seen.add(id(cur))
+
+        if isinstance(cur, list):
+            if cur and all(isinstance(i, dict) for i in cur):
+                return cur
+            for item in cur:
+                queue.append(item)
+
+        elif isinstance(cur, dict):
+            for v in cur.values():
+                queue.append(v)
+
+    if isinstance(obj, dict):
+        return [obj]
+
+    return []
+
+
+def load_feed(uploaded_file) -> List[Dict[str, Any]]:
+    name = uploaded_file.name.lower()
+    text = uploaded_file.getvalue().decode("utf-8")
 
     if name.endswith(".json"):
-        data = json.load(file)
-        if isinstance(data, list):
-            return data
-        if isinstance(data, dict):
-            for k in ("products", "items", "feed"):
-                if k in data and isinstance(data[k], list):
-                    return data[k]
-            return [data]
+        parsed = json.loads(text)
+        return extract_products_from_json(parsed)
 
     elif name.endswith(".xml"):
-        tree = ET.parse(file)
-        root = tree.getroot()
-
+        root = ET.fromstring(text)
         items = []
-        candidates = root.findall(".//item") or root.findall(".//product") or list(root)
+        candidates = root.findall(".//item") or root.findall(".//product") or root.findall(".//entry")
+
         if not candidates:
             candidates = list(root)
 
         for el in candidates:
             obj = {}
             for child in el:
-                tag = child.tag.split("}", 1)[-1]
+                tag = child.tag.split("}")[-1]
                 obj[tag] = child.text or ""
             items.append(obj)
+
         return items
 
     else:
-        st.error("Unsupported file type. Upload JSON or XML only.")
-        return None
+        raise ValueError("Unsupported file type – upload JSON or XML only.")
 
 
-# -----------------------------------------------------------
-# Product Validation Logic
-# -----------------------------------------------------------
-def validate_product(p, idx):
+# =========================================================
+# Validation Logic
+# =========================================================
+def validate_product(p: Dict[str, Any]) -> Tuple[List[str], List[str], List[str]]:
     errors = []
     warnings = []
+    infos = []
 
-    def get(key):
+    def get(key: str):
         for k in p:
             if k.lower() == key.lower():
                 return p[k]
         return None
 
-    required = ["id", "title", "description", "link", "price",
-                "availability", "inventory_quantity",
-                "image_link", "enable_search", "enable_checkout"]
+    required_fields = [
+        "id", "title", "description", "link", "price",
+        "availability", "inventory_quantity", "image_link"
+    ]
 
-    for f in required:
+    for f in required_fields:
         if get(f) in (None, ""):
-            if f in ("enable_search", "enable_checkout"):
-                warnings.append(f"Missing flag '{f}', recommended by spec.")
-            else:
-                errors.append(f"Missing required field '{f}'.")
+            errors.append(f"Missing required field: {f}")
 
-    # URL checks
-    if get("link") and not is_url(get("link")):
-        errors.append("Invalid URL in 'link'.")
-    if get("image_link") and not is_url(get("image_link")):
-        errors.append("Invalid URL in 'image_link'.")
+    # URL fields
+    for field in ("link", "image_link"):
+        val = get(field)
+        if val:
+            if not is_url(val):
+                errors.append(f"{field} is not a valid URL")
+            elif not val.lower().startswith("https"):
+                warnings.append(f"{field} should use HTTPS")
 
     # Price
     price_val, price_cur = extract_price_and_currency(get("price"))
     if price_val is None:
-        errors.append("Invalid price format (expected 'number CUR').")
+        errors.append("Invalid price format (expected 'number CUR')")
 
     # Sale price
     sale = get("sale_price")
     if sale:
-        sale_val, _ = extract_price_and_currency(sale)
+        sale_val, sale_cur = extract_price_and_currency(sale)
         if sale_val is None:
-            errors.append("sale_price not parseable.")
+            errors.append("sale_price not parseable")
         elif price_val and sale_val > price_val:
-            errors.append("sale_price must be less than price.")
+            errors.append("sale_price must be <= price")
 
     # Availability
     availability = get("availability")
     if availability not in ("in_stock", "out_of_stock", "preorder"):
-        errors.append("availability must be in 'in_stock|out_of_stock|preorder'.")
-
-    if availability == "preorder":
-        a_date = get("availability_date")
-        if not a_date:
-            errors.append("availability_date required for preorder.")
-        elif not is_iso8601_date(a_date):
-            errors.append("availability_date must be ISO 8601.")
-        else:
-            dt = parse_iso_date(a_date)
-            if dt and dt <= datetime.now(timezone.utc):
-                errors.append("availability_date must be future for preorder.")
+        errors.append("availability must be in 'in_stock|out_of_stock|preorder'")
 
     # Inventory
     inv = get("inventory_quantity")
     if not is_positive_integer_str(inv):
-        errors.append("inventory_quantity must be a non-negative integer.")
+        errors.append("inventory_quantity must be a non-negative integer")
 
-    # GTIN / MPN Check
+    # GTIN / MPN
     gtin = get("gtin")
     mpn = get("mpn")
     if not gtin and not mpn:
-        errors.append("Either gtin or mpn must be present.")
+        errors.append("Either gtin or mpn must be present")
 
-    return errors, warnings
+    return errors, warnings, infos
 
 
-# -----------------------------------------------------------
-# Streamlit App UI
-# -----------------------------------------------------------
-
-st.set_page_config(page_title="OpenAI Product Feed Validator", layout="wide")
-st.title("🛍️ OpenAI Product Feed Validator")
-st.write("Upload a **JSON or XML** feed to validate it against the **OpenAI Product Feed Spec**.")
-
+# =========================================================
+# File Upload UI
+# =========================================================
 uploaded = st.file_uploader("Upload JSON or XML feed", type=["json", "xml"])
 
-if uploaded:
-    with st.spinner("Parsing feed..."):
-        products = load_feed(uploaded)
+if not uploaded:
+    st.info("Please upload a feed file to start validation.")
+    st.stop()
 
-    if products:
-        st.success(f"Loaded {len(products)} product records!")
+# Parse file
+with st.spinner("Parsing feed..."):
+    products = load_feed(uploaded)
 
-        report = []
-        total_errors = 0
-        total_warnings = 0
+st.success(f"Loaded {len(products)} product records.")
 
-    for idx, p in enumerate(products, start=1):
 
+# =========================================================
+# Validate All Products
+# =========================================================
+product_results = []
+total_errors = 0
+total_warnings = 0
+
+for p in products:
+    errors, warnings, infos = validate_product(p)
+
+    total_errors += len(errors)
+    total_warnings += len(warnings)
+
+    product_results.append({
+        "errors_list": errors,
+        "warnings_list": warnings,
+        "infos_list": infos
+    })
+
+
+# =========================================================
+# Summary Section
+# =========================================================
+st.subheader("Summary")
+col1, col2, col3 = st.columns(3)
+col1.metric("Total Products", len(products))
+col2.metric("Total Errors", total_errors)
+col3.metric("Total Warnings", total_warnings)
+
+
+# =========================================================
+# Detailed Report with Field-by-Field Table
+# =========================================================
+st.subheader("Detailed Report")
+
+for idx, p in enumerate(products, start=1):
     errors = product_results[idx - 1]["errors_list"]
     warnings = product_results[idx - 1]["warnings_list"]
     infos = product_results[idx - 1]["infos_list"]
 
     with st.expander(f"Product {idx} — ID: {p.get('id', '(no id)')}"):
 
-        # ===== FIELD-LEVEL TABLE =====
         required_and_optional_fields = [
             "id", "title", "description", "link", "image_link", "price",
             "sale_price", "sale_price_effective_date",
@@ -209,14 +291,12 @@ if uploaded:
         table_rows = []
 
         for field in required_and_optional_fields:
-
             value = p.get(field, None)
             present = value not in (None, "")
 
             status = "✔ Present" if present else "⚠ Missing"
             notes = ""
 
-            # Match field to error message
             for e in errors:
                 if field.lower() in e.lower():
                     status = "❌ Invalid"
@@ -236,23 +316,10 @@ if uploaded:
         st.markdown("### 🔎 Field Validation Overview")
         st.dataframe(pd.DataFrame(table_rows))
 
-        # ===== ERRORS / WARNINGS / INFO =====
+        # Error sections
         if errors:
             st.error("Errors:\n- " + "\n- ".join(errors))
         if warnings:
             st.warning("Warnings:\n- " + "\n- ".join(warnings))
         if infos:
             st.info("Info:\n- " + "\n- ".join(infos))
-
-
-        # Downloadable CSV
-        df = pd.DataFrame(report)
-        st.download_button(
-            "Download Report as CSV",
-            df.to_csv(index=False).encode("utf-8"),
-            "product_feed_report.csv",
-            "text/csv"
-        )
-
-else:
-    st.info("Please upload a feed file to start validation.")

@@ -207,17 +207,56 @@ if uploaded:
 
         st.subheader("Detailed Report")
 
-        for row in report:
-            with st.expander(f"Product {row['index']} — ID: {row['id']}"):
-                if row["errors"]:
-                    st.error(row["errors"])
-                else:
-                    st.success("No errors")
+      with st.expander(f"Product {idx} — ID: {row['id']}"):
 
-                if row["warnings"]:
-                    st.warning(row["warnings"])
-                else:
-                    st.info("No warnings")
+    # ==== FIELD-BY-FIELD DETAIL TABLE ====
+    required_and_optional_fields = [
+        "id", "title", "description", "link", "image_link", "price",
+        "sale_price", "sale_price_effective_date",
+        "availability", "availability_date",
+        "inventory_quantity", "gtin", "mpn",
+        "brand", "category", "google_product_category",
+        "shipping", "weight",
+        "enable_search", "enable_checkout"
+    ]
+
+    table_rows = []
+
+    for field in required_and_optional_fields:
+        value = p.get(field, None)
+        present = value not in (None, "")
+
+        # Default status
+        status = "✔ Present" if present else "⚠ Missing"
+        notes = ""
+
+        # Check if this field had validation errors/warnings
+        for err in errors:
+            if field in err:
+                status = "❌ Invalid"
+                notes = err
+        for warn in warnings:
+            if field in warn and status != "❌ Invalid":
+                notes = warn
+
+        table_rows.append({
+            "Field": field,
+            "Status": status,
+            "Value": value if value not in (None, "") else "—",
+            "Notes": notes if notes else "—",
+        })
+
+    st.markdown("### 🔎 Field Validation Overview")
+    st.dataframe(pd.DataFrame(table_rows))
+
+    # ==== ERRORS / WARNINGS ====
+    if errors:
+        st.error("**Errors:**\n- " + "\n- ".join(errors))
+    if warnings:
+        st.warning("**Warnings:**\n- " + "\n- ".join(warnings))
+    if infos:
+        st.info("**Info:**\n- " + "\n- ".join(infos))
+
 
         # Downloadable CSV
         df = pd.DataFrame(report)

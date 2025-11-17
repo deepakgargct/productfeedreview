@@ -187,75 +187,62 @@ if uploaded:
         total_errors = 0
         total_warnings = 0
 
-        for idx, p in enumerate(products, start=1):
-            errors, warnings = validate_product(p, idx)
+    for idx, p in enumerate(products, start=1):
 
-            report.append({
-                "index": idx,
-                "id": p.get("id", f"(no id {idx})"),
-                "errors": "; ".join(errors) if errors else "",
-                "warnings": "; ".join(warnings) if warnings else "",
+    errors = product_results[idx - 1]["errors_list"]
+    warnings = product_results[idx - 1]["warnings_list"]
+    infos = product_results[idx - 1]["infos_list"]
+
+    with st.expander(f"Product {idx} — ID: {p.get('id', '(no id)')}"):
+
+        # ===== FIELD-LEVEL TABLE =====
+        required_and_optional_fields = [
+            "id", "title", "description", "link", "image_link", "price",
+            "sale_price", "sale_price_effective_date",
+            "availability", "availability_date",
+            "inventory_quantity", "gtin", "mpn",
+            "brand", "category", "google_product_category",
+            "shipping", "weight",
+            "enable_search", "enable_checkout"
+        ]
+
+        table_rows = []
+
+        for field in required_and_optional_fields:
+
+            value = p.get(field, None)
+            present = value not in (None, "")
+
+            status = "✔ Present" if present else "⚠ Missing"
+            notes = ""
+
+            # Match field to error message
+            for e in errors:
+                if field.lower() in e.lower():
+                    status = "❌ Invalid"
+                    notes = e
+
+            for w in warnings:
+                if field.lower() in w.lower() and not notes:
+                    notes = w
+
+            table_rows.append({
+                "Field": field,
+                "Status": status,
+                "Value": value if value not in (None, "") else "—",
+                "Notes": notes if notes else "—",
             })
 
-            total_errors += len(errors)
-            total_warnings += len(warnings)
+        st.markdown("### 🔎 Field Validation Overview")
+        st.dataframe(pd.DataFrame(table_rows))
 
-        st.subheader("Summary")
-        st.metric("Total Products", len(products))
-        st.metric("Total Errors", total_errors)
-        st.metric("Total Warnings", total_warnings)
-
-        st.subheader("Detailed Report")
-
-      with st.expander(f"Product {idx} — ID: {row['id']}"):
-
-    # ==== FIELD-BY-FIELD DETAIL TABLE ====
-    required_and_optional_fields = [
-        "id", "title", "description", "link", "image_link", "price",
-        "sale_price", "sale_price_effective_date",
-        "availability", "availability_date",
-        "inventory_quantity", "gtin", "mpn",
-        "brand", "category", "google_product_category",
-        "shipping", "weight",
-        "enable_search", "enable_checkout"
-    ]
-
-    table_rows = []
-
-    for field in required_and_optional_fields:
-        value = p.get(field, None)
-        present = value not in (None, "")
-
-        # Default status
-        status = "✔ Present" if present else "⚠ Missing"
-        notes = ""
-
-        # Check if this field had validation errors/warnings
-        for err in errors:
-            if field in err:
-                status = "❌ Invalid"
-                notes = err
-        for warn in warnings:
-            if field in warn and status != "❌ Invalid":
-                notes = warn
-
-        table_rows.append({
-            "Field": field,
-            "Status": status,
-            "Value": value if value not in (None, "") else "—",
-            "Notes": notes if notes else "—",
-        })
-
-    st.markdown("### 🔎 Field Validation Overview")
-    st.dataframe(pd.DataFrame(table_rows))
-
-    # ==== ERRORS / WARNINGS ====
-    if errors:
-        st.error("**Errors:**\n- " + "\n- ".join(errors))
-    if warnings:
-        st.warning("**Warnings:**\n- " + "\n- ".join(warnings))
-    if infos:
-        st.info("**Info:**\n- " + "\n- ".join(infos))
+        # ===== ERRORS / WARNINGS / INFO =====
+        if errors:
+            st.error("Errors:\n- " + "\n- ".join(errors))
+        if warnings:
+            st.warning("Warnings:\n- " + "\n- ".join(warnings))
+        if infos:
+            st.info("Info:\n- " + "\n- ".join(infos))
 
 
         # Downloadable CSV

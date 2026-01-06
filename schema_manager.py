@@ -5,14 +5,22 @@ This module provides a comprehensive schema management system with priority-base
 handling for product feed review operations. It includes CRITICAL, HIGH, MEDIUM,
 and LOW priority attributes with corresponding impact scores.
 
+Enhanced with:
+- JSON schema creation and loading
+- Schema validation against ChatGPT specification
+- Schema comparison and diffing
+- Schema export/import functionality
+
 Author: deepakgargct
 Created: 2026-01-06 13:35:12 UTC
 """
 
 from enum import Enum
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
+import json
+import os
 
 
 class PriorityLevel(Enum):
@@ -285,6 +293,239 @@ class SchemaManager:
             key=lambda attr: attr.impact_score,
             reverse=descending,
         )
+    
+    def to_json(self) -> str:
+        """
+        Export schema to JSON string
+        
+        Returns:
+            JSON string representation of the schema
+        """
+        return json.dumps(self.get_schema_summary(), indent=2)
+    
+    def save_to_file(self, filepath: str) -> None:
+        """
+        Save schema to a JSON file
+        
+        Args:
+            filepath: Path to the output JSON file
+        """
+        with open(filepath, 'w') as f:
+            f.write(self.to_json())
+    
+    @classmethod
+    def load_from_file(cls, filepath: str) -> 'SchemaManager':
+        """
+        Load schema from a JSON file
+        
+        Args:
+            filepath: Path to the input JSON file
+            
+        Returns:
+            SchemaManager instance
+        """
+        with open(filepath, 'r') as f:
+            data = json.load(f)
+        
+        return cls.from_dict(data)
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'SchemaManager':
+        """
+        Create schema from dictionary
+        
+        Args:
+            data: Dictionary representation of schema
+            
+        Returns:
+            SchemaManager instance
+        """
+        schema = cls(
+            schema_name=data.get('schema_name', 'Untitled'),
+            version=data.get('version', '1.0.0'),
+            description=data.get('description', '')
+        )
+        schema.created_at = data.get('created_at', schema.created_at)
+        
+        # Load attributes
+        for attr_name, attr_data in data.get('attributes', {}).items():
+            priority_name = attr_data.get('priority', 'LOW')
+            priority = PriorityLevel[priority_name]
+            
+            attr = SchemaAttribute(
+                name=attr_data['name'],
+                description=attr_data['description'],
+                priority=priority,
+                data_type=attr_data.get('data_type', 'string'),
+                required=attr_data.get('required', False),
+                weight=attr_data.get('weight', 1.0),
+                validation_rules=attr_data.get('validation_rules', []),
+                examples=attr_data.get('examples', [])
+            )
+            schema.attributes[attr_name] = attr
+        
+        return schema
+    
+    @classmethod
+    def from_json_template(cls, template_path: str) -> 'SchemaManager':
+        """
+        Create schema from JSON template file
+        
+        Args:
+            template_path: Path to JSON template file
+            
+        Returns:
+            SchemaManager instance
+        """
+        return cls.load_from_file(template_path)
+    
+    def validate_against_chatgpt_spec(self) -> Tuple[bool, List[str]]:
+        """
+        Validate schema against ChatGPT product feed specification
+        
+        Returns:
+            Tuple of (is_valid, errors)
+        """
+        from chatgpt_feed_spec import ChatGPTFieldSpecification
+        
+        errors = []
+        chatgpt_required = ChatGPTFieldSpecification.get_required_fields()
+        
+        # Check if all ChatGPT required fields are present
+        for field in chatgpt_required:
+            if field not in self.attributes:
+                errors.append(f"Missing required ChatGPT field: {field}")
+            elif not self.attributes[field].required:
+                errors.append(f"ChatGPT required field '{field}' is not marked as required")
+        
+        return len(errors) == 0, errors
+    
+    def compare_with(self, other: 'SchemaManager') -> Dict[str, Any]:
+        """
+        Compare this schema with another schema
+        
+        Args:
+            other: Another SchemaManager instance
+            
+        Returns:
+            Dictionary containing comparison results
+        """
+        comparison = {
+            "schemas": {
+                "this": self.schema_name,
+                "other": other.schema_name
+            },
+            "added_attributes": [],
+            "removed_attributes": [],
+            "modified_attributes": [],
+            "unchanged_attributes": []
+        }
+        
+        this_attrs = set(self.attributes.keys())
+        other_attrs = set(other.attributes.keys())
+        
+        # Find added and removed attributes
+        comparison["added_attributes"] = list(this_attrs - other_attrs)
+        comparison["removed_attributes"] = list(other_attrs - this_attrs)
+        
+        # Find modified and unchanged attributes
+        common_attrs = this_attrs & other_attrs
+        for attr_name in common_attrs:
+            this_attr = self.attributes[attr_name]
+            other_attr = other.attributes[attr_name]
+            
+            if this_attr.to_dict() != other_attr.to_dict():
+                comparison["modified_attributes"].append({
+                    "name": attr_name,
+                    "this": this_attr.to_dict(),
+                    "other": other_attr.to_dict()
+                })
+            else:
+                comparison["unchanged_attributes"].append(attr_name)
+        
+        return comparison
+    
+    def diff(self, other: 'SchemaManager') -> str:
+        """
+        Generate a human-readable diff between this schema and another
+        
+        Args:
+            other: Another SchemaManager instance
+            
+        Returns:
+            String representation of the diff
+        """
+        comparison = self.compare_with(other)
+        
+        lines = []
+        lines.append(f"Schema Comparison: {self.schema_name} vs {other.schema_name}")
+        lines.append("=" * 80)
+        
+        if comparison["added_attributes"]:
+            lines.append(f"\nAdded Attributes ({len(comparison['added_attributes'])}):")
+            for attr in comparison["added_attributes"]:
+                lines.append(f"  + {attr}")
+        
+        if comparison["removed_attributes"]:
+            lines.append(f"\nRemoved Attributes ({len(comparison['removed_attributes'])}):")
+            for attr in comparison["removed_attributes"]:
+                lines.append(f"  - {attr}")
+        
+        if comparison["modified_attributes"]:
+            lines.append(f"\nModified Attributes ({len(comparison['modified_attributes'])}):")
+            for mod in comparison["modified_attributes"]:
+                lines.append(f"  ~ {mod['name']}")
+                # Show key differences
+                this_dict = mod['this']
+                other_dict = mod['other']
+                for key in set(this_dict.keys()) | set(other_dict.keys()):
+                    if this_dict.get(key) != other_dict.get(key):
+                        lines.append(f"    {key}: {other_dict.get(key)} -> {this_dict.get(key)}")
+        
+        if comparison["unchanged_attributes"]:
+            lines.append(f"\nUnchanged Attributes: {len(comparison['unchanged_attributes'])}")
+        
+        return "\n".join(lines)
+    
+    def merge_with(self, other: 'SchemaManager', conflict_resolution: str = 'this') -> 'SchemaManager':
+        """
+        Merge this schema with another schema
+        
+        Args:
+            other: Another SchemaManager instance
+            conflict_resolution: How to resolve conflicts ('this', 'other', or 'newest')
+            
+        Returns:
+            New merged SchemaManager instance
+        """
+        merged = SchemaManager(
+            schema_name=f"{self.schema_name}_merged",
+            version=self.version,
+            description=f"Merged schema: {self.description} + {other.description}"
+        )
+        
+        # Add all attributes from both schemas
+        all_attrs = set(self.attributes.keys()) | set(other.attributes.keys())
+        
+        for attr_name in all_attrs:
+            if attr_name in self.attributes and attr_name in other.attributes:
+                # Conflict - use resolution strategy
+                if conflict_resolution == 'this':
+                    merged.attributes[attr_name] = self.attributes[attr_name]
+                elif conflict_resolution == 'other':
+                    merged.attributes[attr_name] = other.attributes[attr_name]
+                else:  # newest
+                    # Use the one with higher impact score
+                    if self.attributes[attr_name].impact_score >= other.attributes[attr_name].impact_score:
+                        merged.attributes[attr_name] = self.attributes[attr_name]
+                    else:
+                        merged.attributes[attr_name] = other.attributes[attr_name]
+            elif attr_name in self.attributes:
+                merged.attributes[attr_name] = self.attributes[attr_name]
+            else:
+                merged.attributes[attr_name] = other.attributes[attr_name]
+        
+        return merged
 
 
 class ProductFeedSchema(SchemaManager):

@@ -394,7 +394,7 @@ class SchemaManager:
         # Check if all ChatGPT required fields are present
         for field in chatgpt_required:
             if field not in self.attributes:
-                errors.append(f"Missing required ChatGPT field: {field}")
+                errors.append(f"Missing required ChatGPT field: '{field}'")
             elif not self.attributes[field].required:
                 errors.append(f"ChatGPT required field '{field}' is not marked as required")
         

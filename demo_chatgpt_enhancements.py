@@ -12,6 +12,8 @@ Date: 2026-01-06
 """
 
 import json
+import tempfile
+import os
 from chatgpt_feed_spec import (
     Product, ProductFeed, FeedFormat, CurrencyCode,
     ProductAvailability, ProductCondition, ChatGPTFieldSpecification
@@ -234,6 +236,9 @@ def demo_schema_management():
     print("DEMO 5: Schema Management")
     print("=" * 80)
     
+    # Create a temporary directory for demo files
+    temp_dir = tempfile.mkdtemp()
+    
     # Create a schema
     print("\n--- Creating and Saving Schema ---")
     schema1 = ProductFeedSchema()
@@ -241,11 +246,12 @@ def demo_schema_management():
     print(f"Total attributes: {len(schema1.attributes)}")
     
     # Save to file
-    schema1.save_to_file('/tmp/demo_schema1.json')
-    print("✓ Schema saved to /tmp/demo_schema1.json")
+    schema_path = os.path.join(temp_dir, 'demo_schema1.json')
+    schema1.save_to_file(schema_path)
+    print(f"✓ Schema saved to {schema_path}")
     
     # Load from file
-    loaded_schema = SchemaManager.load_from_file('/tmp/demo_schema1.json')
+    loaded_schema = SchemaManager.load_from_file(schema_path)
     print(f"✓ Schema loaded: {loaded_schema.schema_name}")
     
     # Create a second schema for comparison

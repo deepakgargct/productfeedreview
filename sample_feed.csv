@@ -1,0 +1,5 @@
+product_id,title,description,price,currency,category,availability,manufacturer,image_url,product_url,rating
+PROD001,Premium Wireless Bluetooth Headphones,High-quality wireless headphones with active noise cancellation and 30-hour battery life,149.99,USD,electronics,in_stock,AudioPro,https://example.com/headphones.jpg,https://example.com/products/headphones,4.5
+PROD002,USB-C Fast Charging Cable,Durable 6-foot USB-C to USB-C cable with fast charging support,15.99,USD,electronics,in_stock,TechCables,https://example.com/cable.jpg,https://example.com/products/cable,4.2
+PROD003,Organic Cotton T-Shirt,Comfortable and eco-friendly organic cotton t-shirt perfect for everyday wear,29.99,USD,clothing,in_stock,EcoWear,https://example.com/tshirt.jpg,https://example.com/products/tshirt,4.7
+PROD004,Bad Product,Short,5.00,USD,electronics,in_stock,,,

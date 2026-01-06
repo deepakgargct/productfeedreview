@@ -9,7 +9,7 @@ from datetime import datetime
 import pandas as pd
 import io
 import json
-from chatgpt_feed_validator import ChatGPTFeedValidator, ValidationResult
+from chatgpt_feed_validator import ChatGPTFeedValidator, ValidationResult, ValidationLevel
 
 app = Flask(__name__)
 CORS(app)
@@ -40,7 +40,6 @@ def calculate_compliance_score(validation_result: ValidationResult) -> dict:
     
     for warning in validation_result.warnings:
         # Determine if this is a recommendation or warning
-        from chatgpt_feed_validator import ValidationLevel
         if warning.level == ValidationLevel.INFO:
             recommendations.append({
                 'field': warning.field,

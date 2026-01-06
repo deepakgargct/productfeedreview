@@ -1,136 +1,354 @@
-# Product Feed Review - Custom Schema Tester
+# Product Feed Review
 
-A comprehensive tool for validating, analyzing, and testing product feed schemas with support for JSON-LD, custom schemas, and ChatGPT Product Feed specifications.
+A comprehensive solution for analyzing, validating, and reviewing product feeds with intelligent feedback mechanisms and quality assurance tools.
 
-## 📋 Table of Contents
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.0-brightgreen.svg)
+![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)
 
-- [Overview](#overview)
+## Table of Contents
+
 - [Features](#features)
+- [Quick Start](#quick-start)
 - [Installation](#installation)
-- [Usage Guide](#usage-guide)
-- [File Structure](#file-structure)
+- [Usage](#usage)
 - [API Documentation](#api-documentation)
-- [JSON-LD Schema Examples](#json-ld-schema-examples)
-- [Validation and Error Handling](#validation-and-error-handling)
-- [ChatGPT Product Feed Specification](#chatgpt-product-feed-specification)
-- [Best Practices](#best-practices)
+- [Architecture](#architecture)
+- [Examples](#examples)
 - [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
 
-## 🎯 Overview
+---
 
-Product Feed Review is a powerful validation and testing suite designed to ensure your product feed schemas comply with industry standards and best practices. The tool provides:
+## Features
 
-- **URL-based schema generation** for quick schema extraction from product feeds
-- **Custom Schema Tester** for comprehensive schema validation and analysis
-- **Multiple validators** supporting JSON-LD, custom schemas, and ChatGPT specifications
-- **Detailed recommendations** for schema improvements and compliance
+### Core Functionality
+- **Feed Validation**: Comprehensive validation of product feeds against industry standards
+- **Quality Analysis**: Automatic detection of data quality issues and inconsistencies
+- **Intelligent Feedback**: AI-powered suggestions for feed improvements
+- **Multi-Format Support**: Handle CSV, JSON, XML, and custom formats
+- **Real-time Processing**: Stream-based processing for large feeds
+- **Detailed Reporting**: Generate comprehensive reports with actionable insights
 
-The application is built with Flask and provides both web interface and API endpoints for easy integration into your workflows.
+### Advanced Features
+- **Schema Validation**: Validate against custom or predefined schemas
+- **Duplicate Detection**: Identify and flag duplicate products
+- **Price Anomaly Detection**: Detect unusual price fluctuations
+- **Image Validation**: Verify image URLs and quality
+- **Category Mapping**: Intelligent product category suggestions
+- **Competitor Analysis**: Compare feeds with competitor data
+- **Historical Tracking**: Monitor feed changes over time
+- **Batch Processing**: Handle multiple feeds simultaneously
 
-## ✨ Features
+### Integration Capabilities
+- **API-First Design**: RESTful API for easy integration
+- **Webhook Support**: Real-time notifications on feed updates
+- **Multi-Platform**: Works with e-commerce platforms (Shopify, WooCommerce, Magento)
+- **Export Options**: CSV, JSON, PDF, and XML export formats
 
-### 1. **URL-Based Schema Generation**
-- Automatically extract and parse product feed schemas from URLs
-- Support for multiple schema formats and encodings
-- Intelligent schema detection and normalization
-- Batch processing capabilities
+---
 
-### 2. **Custom Schema Tester**
-- Comprehensive validation of custom schema definitions
-- Schema completeness analysis
-- Field type validation and enforcement
-- Recursive schema validation for nested objects
-- Performance profiling and optimization suggestions
-
-### 3. **Validators**
-
-#### ChatGPT Schema Validator
-- Ensures compliance with ChatGPT Product Feed Specification
-- Validates required fields and their formats
-- Type checking and format validation
-- Product classification support
-
-#### Schema Structure Validator
-- Validates against predefined schema specifications
-- Type consistency checking
-- Required/optional field enforcement
-- Format and pattern validation
-
-#### Custom Schema Analyzer
-- Deep analysis of custom schema structures
-- Missing field detection
-- Type inference from sample data
-- Recommendations for schema improvements
-
-## 📦 Installation
+## Quick Start
 
 ### Prerequisites
 - Python 3.8 or higher
-- pip (Python package manager)
-- Flask 2.0+
+- pip or conda package manager
+- 2GB RAM minimum
 
-### Steps
+### Installation (5 minutes)
 
-1. **Clone the repository**
+```bash
+# Clone the repository
+git clone https://github.com/deepakgargct/productfeedreview.git
+cd productfeedreview
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+### Basic Usage
+
+```python
+from productfeedreview import FeedAnalyzer
+
+# Initialize analyzer
+analyzer = FeedAnalyzer(config_file='config.yaml')
+
+# Analyze a feed
+results = analyzer.analyze('products.csv')
+
+# Get report
+report = results.generate_report()
+print(report)
+```
+
+---
+
+## Installation
+
+### System Requirements
+
+| Component | Requirement |
+|-----------|-------------|
+| Python | 3.8+ |
+| Memory | 2GB minimum |
+| Disk Space | 500MB for installation |
+| OS | Linux, macOS, Windows |
+
+### Step-by-Step Installation
+
+#### 1. Clone Repository
 ```bash
 git clone https://github.com/deepakgargct/productfeedreview.git
 cd productfeedreview
 ```
 
-2. **Create virtual environment**
+#### 2. Create Virtual Environment
 ```bash
+# Using venv
 python -m venv venv
-
-# On Windows
-venv\Scripts\activate
-
-# On macOS/Linux
 source venv/bin/activate
+
+# OR using conda
+conda create -n productfeedreview python=3.9
+conda activate productfeedreview
 ```
 
-3. **Install dependencies**
+#### 3. Install Dependencies
 ```bash
+# Standard installation
 pip install -r requirements.txt
+
+# Development installation
+pip install -r requirements-dev.txt
+
+# With optional dependencies
+pip install -r requirements.txt[all]
 ```
 
-4. **Run the application**
+#### 4. Configuration
 ```bash
-python app.py
+# Copy example configuration
+cp .env.example .env
+
+# Edit configuration
+nano .env  # or your favorite editor
 ```
 
-The application will start on `http://localhost:5000`
-
-## 📖 Usage Guide
-
-### Web Interface
-
-1. **Access the application** at `http://localhost:5000`
-2. **Enter a product feed URL** in the input field
-3. **Select validation options** (ChatGPT compliance, custom schema, etc.)
-4. **Click "Analyze"** to run validation
-5. **Review results** including errors, warnings, and recommendations
-
-### API Endpoints
-
-#### Validate Schema (POST)
-```
-POST /api/validate
+#### 5. Verify Installation
+```bash
+python -m productfeedreview --version
+python -m productfeedreview --help
 ```
 
-**Request Body:**
+### Docker Installation
+
+```bash
+# Build Docker image
+docker build -t productfeedreview .
+
+# Run container
+docker run -p 8000:8000 productfeedreview
+
+# With volume mount
+docker run -p 8000:8000 -v $(pwd)/feeds:/app/feeds productfeedreview
+```
+
+---
+
+## Usage
+
+### Command Line Interface
+
+#### Basic Feed Analysis
+```bash
+# Analyze a single feed
+productfeedreview analyze products.csv --format csv
+
+# Analyze with custom schema
+productfeedreview analyze products.json --schema custom_schema.json
+
+# Analyze with strict validation
+productfeedreview analyze products.xml --strict --report report.html
+```
+
+#### Batch Processing
+```bash
+# Process multiple feeds
+productfeedreview batch-process /path/to/feeds --config batch_config.yaml
+
+# Process with parallel execution
+productfeedreview batch-process /path/to/feeds --workers 4
+```
+
+#### Report Generation
+```bash
+# Generate HTML report
+productfeedreview report --feed products.csv --output report.html
+
+# Generate PDF report
+productfeedreview report --feed products.csv --format pdf
+
+# Generate with custom template
+productfeedreview report --feed products.csv --template custom.html
+```
+
+### Python API
+
+#### Basic Analysis
+```python
+from productfeedreview import FeedAnalyzer, ValidationSchema
+
+# Initialize analyzer
+analyzer = FeedAnalyzer()
+
+# Load and analyze feed
+results = analyzer.analyze('products.csv', file_format='csv')
+
+# Access results
+print(f"Total products: {results.total_products}")
+print(f"Issues found: {results.total_issues}")
+print(f"Quality score: {results.quality_score}%")
+```
+
+#### Custom Validation
+```python
+from productfeedreview import ValidationSchema, ValidationRule
+
+# Define custom schema
+schema = ValidationSchema(
+    name="Custom Product Schema",
+    rules=[
+        ValidationRule(field='sku', required=True, pattern=r'^[A-Z0-9]{10}$'),
+        ValidationRule(field='price', required=True, data_type='float', min_value=0),
+        ValidationRule(field='title', required=True, min_length=10, max_length=200),
+        ValidationRule(field='url', required=True, validation_type='url'),
+    ]
+)
+
+# Apply schema
+results = analyzer.analyze('products.csv', schema=schema)
+```
+
+#### Advanced Processing
+```python
+from productfeedreview import FeedProcessor, QualityAnalyzer
+
+# Process with custom transformations
+processor = FeedProcessor()
+processor.add_transformation('normalize_price', {'currency': 'USD'})
+processor.add_transformation('standardize_category')
+processed_feed = processor.process('products.csv')
+
+# Analyze quality
+quality = QualityAnalyzer(processed_feed)
+quality_metrics = quality.analyze()
+
+# Generate insights
+insights = quality.get_recommendations()
+for insight in insights:
+    print(f"Issue: {insight.issue}")
+    print(f"Severity: {insight.severity}")
+    print(f"Recommendation: {insight.recommendation}")
+```
+
+#### Working with Results
+```python
+# Get detailed issues
+issues = results.get_issues(severity='critical')
+
+# Filter by category
+pricing_issues = results.filter_issues(category='pricing')
+
+# Export results
+results.export_csv('analysis_results.csv')
+results.export_json('analysis_results.json')
+results.export_pdf('analysis_report.pdf')
+
+# Get summary
+summary = results.get_summary()
+```
+
+---
+
+## API Documentation
+
+### REST API Endpoints
+
+#### Feed Analysis Endpoints
+
+##### POST /api/v1/analyze
+Analyze a product feed.
+
+**Request:**
 ```json
 {
+  "feed_url": "https://example.com/products.csv",
+  "format": "csv",
+  "schema_id": "standard_ecommerce",
+  "strict_mode": true
+}
+```
+
+**Response:**
+```json
+{
+  "analysis_id": "ana_123456",
+  "status": "completed",
+  "total_products": 1500,
+  "total_issues": 45,
+  "quality_score": 87,
+  "issues": [
+    {
+      "product_id": "SKU-001",
+      "field": "price",
+      "issue": "Missing price",
+      "severity": "critical",
+      "suggestion": "Add price for product"
+    }
+  ],
+  "created_at": "2026-01-06T13:13:07Z",
+  "processing_time_ms": 2340
+}
+```
+
+##### GET /api/v1/analysis/{analysis_id}
+Retrieve analysis results.
+
+**Response:** Same as above
+
+##### GET /api/v1/analysis/{analysis_id}/report
+Download analysis report.
+
+**Query Parameters:**
+- `format`: pdf, html, json, csv (default: html)
+
+---
+
+#### Validation Endpoints
+
+##### POST /api/v1/validate
+Validate feed against schema.
+
+**Request:**
+```json
+{
+  "feed_data": [...],
   "schema": {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    "name": "Wireless Headphones",
-    "description": "High-quality wireless headphones",
-    "price": "99.99",
-    "priceCurrency": "USD",
-    "image": "https://example.com/headphones.jpg"
-  },
-  "validate_chatgpt": true,
-  "validate_structure": true
+    "fields": [
+      {"name": "sku", "required": true, "type": "string"},
+      {"name": "price", "required": true, "type": "number"}
+    ]
+  }
 }
 ```
 
@@ -139,1052 +357,633 @@ POST /api/validate
 {
   "valid": true,
   "errors": [],
-  "warnings": [],
-  "recommendations": [
-    "Consider adding 'brand' field for better product identification",
-    "Add 'availability' field to indicate stock status"
-  ],
-  "summary": "Schema is valid with minor improvement suggestions"
+  "warnings": ["Some prices are very low"]
 }
 ```
 
-#### Extract Schema from URL (POST)
-```
-POST /api/extract-schema
-```
-
-**Request Body:**
-```json
-{
-  "url": "https://example.com/product-feed",
-  "validate": true
-}
-```
+##### GET /api/v1/schemas
+List available schemas.
 
 **Response:**
 ```json
 {
-  "extracted_schemas": [
+  "schemas": [
     {
-      "@context": "https://schema.org",
-      "@type": "Product",
-      "name": "Product Name",
-      "price": "99.99"
+      "id": "standard_ecommerce",
+      "name": "Standard E-commerce",
+      "version": "1.0"
     }
-  ],
-  "schema_count": 1,
-  "validation_results": {}
+  ]
 }
 ```
 
-#### Analyze Custom Schema (POST)
-```
-POST /api/analyze-custom-schema
-```
+---
 
-**Request Body:**
-```json
-{
-  "schema_definition": {
-    "type": "object",
-    "properties": {
-      "product_id": {"type": "string"},
-      "product_name": {"type": "string"},
-      "pricing": {
-        "type": "object",
-        "properties": {
-          "amount": {"type": "number"},
-          "currency": {"type": "string"}
-        }
-      }
-    },
-    "required": ["product_id", "product_name"]
-  },
-  "sample_data": {
-    "product_id": "SKU123",
-    "product_name": "Headphones"
-  }
-}
-```
+#### Status and Health Endpoints
+
+##### GET /api/v1/health
+Check API health.
 
 **Response:**
 ```json
 {
-  "completeness": 85,
-  "missing_fields": ["description", "image_url"],
-  "type_consistency": true,
-  "recommendations": [
-    "Add 'description' field for better product context",
-    "Include 'image_url' for product visualization"
-  ],
-  "analysis": {
-    "total_fields": 3,
-    "required_fields": 2,
-    "optional_fields": 1
+  "status": "healthy",
+  "timestamp": "2026-01-06T13:13:07Z"
+}
+```
+
+##### GET /api/v1/status
+Get system status.
+
+**Response:**
+```json
+{
+  "status": "operational",
+  "active_analyses": 5,
+  "queue_length": 2
+}
+```
+
+---
+
+### Authentication
+
+API requests require authentication via API key:
+
+```bash
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+  https://api.productfeedreview.com/api/v1/analyze
+```
+
+Or in Python:
+```python
+from productfeedreview.client import APIClient
+
+client = APIClient(api_key='your_api_key')
+results = client.analyze('products.csv')
+```
+
+---
+
+### Error Handling
+
+**Error Response Format:**
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Feed validation failed",
+    "details": {
+      "field": "price",
+      "issue": "Invalid price format"
+    }
   }
 }
 ```
 
-### Command Line Usage
+**Common Error Codes:**
+- `VALIDATION_ERROR`: Feed validation failed
+- `FILE_NOT_FOUND`: Feed file not found
+- `UNSUPPORTED_FORMAT`: Feed format not supported
+- `SCHEMA_NOT_FOUND`: Requested schema not found
+- `RATE_LIMIT_EXCEEDED`: API rate limit exceeded
 
-#### Validate a JSON-LD Schema
-```bash
-python custom_schema_tester.py --validate --file schema.json
-```
+---
 
-#### Analyze Custom Schema
-```bash
-python custom_schema_tester.py --analyze --file custom_schema.json --sample-data sample.json
-```
+## Architecture
 
-#### Extract Schema from URL
-```bash
-python custom_schema_tester.py --extract --url https://example.com/product
-```
-
-## 📁 File Structure
+### System Overview
 
 ```
-productfeedreview/
-├── app.py                           # Main Flask application
-├── custom_schema_tester.py          # Custom schema testing utility
-├── requirements.txt                 # Python dependencies
-├── README.md                        # This file
-│
-├── validators/
-│   ├── __init__.py
-│   ├── chatgpt_schema_spec.py      # ChatGPT Product Feed Specification
-│   ├── schema_validator.py         # Schema validation logic
-│   └── custom_schema_analyzer.py   # Custom schema analysis
-│
-├── templates/
-│   ├── base.html                   # Base template
-│   ├── index.html                  # Home page
-│   └── results.html                # Results display page
-│
-├── static/
-│   ├── css/
-│   │   └── style.css               # Application styling
-│   └── js/
-│       └── main.js                 # Frontend JavaScript
-│
-└── tests/
-    ├── test_validators.py          # Validator unit tests
-    ├── test_schema_tester.py       # Schema tester tests
-    └── test_api.py                 # API endpoint tests
+┌─────────────────────────────────────────────────────────────┐
+│                     Input Layer                             │
+│  (CSV, JSON, XML, API, URL, Database, Streaming)           │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────────┐
+│                  Parsing & Normalization                    │
+│  (Format Detection, Encoding, Data Cleaning)               │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────────┐
+│               Validation Engine                             │
+│  (Schema Validation, Type Checking, Rule Application)      │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────────┐
+│                Quality Analysis                             │
+│  (Completeness, Consistency, Accuracy, Freshness)          │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────────┐
+│              Intelligence & Enrichment                       │
+│  (Anomaly Detection, Duplicates, ML Insights)              │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────────┐
+│                  Report Generation                          │
+│  (Aggregation, Formatting, Export)                         │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────────┐
+│                    Output Layer                             │
+│  (JSON, CSV, HTML, PDF, Database, Webhooks)               │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### Key Components
 
-#### **app.py** - Flask Application
-Main application file containing:
-- Route handlers for web interface
-- REST API endpoints
-- Request/response handling
-- Error management
+#### 1. Feed Parser
+- Handles multiple formats (CSV, JSON, XML, custom)
+- Auto-detection of format and encoding
+- Streaming support for large files
+- Error recovery and partial processing
 
-#### **custom_schema_tester.py** - Schema Testing Utility
-Core testing logic:
-- Schema extraction and parsing
-- Validation orchestration
-- Results aggregation
-- CLI interface
+#### 2. Validation Engine
+- Schema-based validation
+- Custom rule engine
+- Type checking and conversion
+- Pattern matching and regex validation
 
-#### **validators/chatgpt_schema_spec.py** - ChatGPT Specification
-ChatGPT Product Feed requirements:
-```python
-CHATGPT_REQUIRED_FIELDS = {
-    'name': {'type': 'string'},
-    'price': {'type': 'number'},
-    'priceCurrency': {'type': 'string'},
-    'description': {'type': 'string'},
-    'image': {'type': 'string' or 'array'}
-}
-
-CHATGPT_OPTIONAL_FIELDS = {
-    'brand': {'type': 'string'},
-    'availability': {'type': 'string'},
-    'review': {'type': 'object'},
-    'ratingValue': {'type': 'number'}
-}
-```
-
-#### **validators/schema_validator.py** - Validation Engine
-Core validation functionality:
-- Schema structure validation
-- Type checking
-- Required field enforcement
-- Format validation
-- Error reporting
-
-#### **validators/custom_schema_analyzer.py** - Analysis Tool
-Schema analysis features:
+#### 3. Quality Analyzer
 - Completeness scoring
-- Missing field detection
-- Type consistency checking
-- Recommendation generation
+- Consistency checking
+- Duplicate detection
+- Anomaly identification
 
-## 🔗 API Documentation
+#### 4. Report Generator
+- Structured report creation
+- Multiple output formats
+- Custom templates
+- Aggregated metrics
 
-### Authentication
+### Data Flow
 
-Currently, the API is open. For production deployments, implement API key authentication:
+1. **Input** → Feed files uploaded/provided
+2. **Parse** → Extract and normalize data
+3. **Validate** → Check against schema rules
+4. **Analyze** → Assess quality and identify issues
+5. **Enrich** → Add insights and recommendations
+6. **Export** → Generate reports and outputs
+
+### Technology Stack
+
+- **Language**: Python 3.8+
+- **Web Framework**: FastAPI / Flask
+- **Data Processing**: Pandas, NumPy
+- **Validation**: Pydantic, JSONSchema
+- **Database**: PostgreSQL / SQLite
+- **Cache**: Redis
+- **Message Queue**: Celery / RabbitMQ
+- **API Documentation**: Swagger/OpenAPI
+- **Testing**: Pytest, Coverage
+- **Containerization**: Docker, Docker Compose
+
+---
+
+## Examples
+
+### Example 1: Basic CSV Feed Analysis
+
+**Input File (products.csv):**
+```csv
+sku,title,price,category,url
+SKU-001,Widget Pro,$19.99,Electronics,https://example.com/widget-pro
+SKU-002,Gadget Plus,,Tools,https://example.com/gadget-plus
+SKU-003,Device Max,$-5.00,Electronics,invalid-url
+```
+
+**Python Code:**
+```python
+from productfeedreview import FeedAnalyzer
+
+analyzer = FeedAnalyzer()
+results = analyzer.analyze('products.csv', file_format='csv')
+
+print(f"Quality Score: {results.quality_score}%")
+print(f"Total Issues: {results.total_issues}")
+
+for issue in results.get_issues(severity='critical'):
+    print(f"\nProduct: {issue.product_id}")
+    print(f"Issue: {issue.issue}")
+    print(f"Suggestion: {issue.suggestion}")
+```
+
+**Output:**
+```
+Quality Score: 73%
+Total Issues: 3
+
+Product: SKU-002
+Issue: Missing required field 'price'
+Suggestion: Add price for product SKU-002
+
+Product: SKU-003
+Issue: Invalid price format (negative value)
+Suggestion: Correct price to positive value
+
+Product: SKU-003
+Issue: Invalid URL format
+Suggestion: Provide valid product URL
+```
+
+### Example 2: E-commerce Platform Integration
 
 ```python
-@app.before_request
-def check_api_key():
-    api_key = request.headers.get('X-API-Key')
-    if not api_key or not validate_api_key(api_key):
-        return {'error': 'Invalid API key'}, 401
+from productfeedreview import FeedAnalyzer, APIClient
+from productfeedreview.integrations import ShopifyIntegration
+
+# Initialize Shopify integration
+shopify_client = ShopifyIntegration(
+    shop_url='myshop.myshopify.com',
+    access_token='your_token'
+)
+
+# Fetch products from Shopify
+products = shopify_client.fetch_products()
+
+# Analyze feed
+analyzer = FeedAnalyzer()
+results = analyzer.analyze_data(products)
+
+# Generate report
+report = results.generate_report()
+
+# Send results back to Shopify via webhook
+shopify_client.send_webhook('feed_analysis', report)
+
+print(f"Analysis complete: {results.quality_score}% quality")
 ```
 
-### Error Responses
+### Example 3: Batch Processing Multiple Feeds
 
-All API endpoints return consistent error responses:
+```python
+from productfeedreview import BatchProcessor
+from pathlib import Path
 
-```json
-{
-  "error": "Error message",
-  "status": 400,
-  "details": {
-    "field": "Additional error details"
-  }
+# Configure batch processor
+config = {
+    'workers': 4,
+    'timeout': 300,
+    'retry_failed': True,
+    'generate_reports': True
 }
+
+processor = BatchProcessor(config=config)
+
+# Process all feeds in directory
+feeds_dir = Path('feeds/')
+results = processor.process_directory(feeds_dir)
+
+# Generate summary report
+summary = processor.get_summary()
+print(f"Processed: {summary['total_feeds']} feeds")
+print(f"Avg Quality: {summary['avg_quality_score']}%")
+print(f"Total Issues: {summary['total_issues']}")
+
+# Export results
+processor.export_results('batch_results.json', format='json')
 ```
 
-### Rate Limiting
+### Example 4: Custom Validation Schema
 
-Recommended rate limiting configuration:
-- 100 requests per minute for authenticated users
-- 10 requests per minute for unauthenticated users
-- Burst limit: 20 requests
+```python
+from productfeedreview import FeedAnalyzer, ValidationSchema, ValidationRule
 
-### Response Codes
+# Define custom rules
+rules = [
+    ValidationRule(
+        field='sku',
+        required=True,
+        pattern=r'^[A-Z]{3}-\d{6}$',
+        error_message='SKU must match pattern XXX-000000'
+    ),
+    ValidationRule(
+        field='price',
+        required=True,
+        data_type='float',
+        min_value=0.01,
+        max_value=10000,
+        error_message='Price must be between 0.01 and 10000'
+    ),
+    ValidationRule(
+        field='title',
+        required=True,
+        min_length=10,
+        max_length=200,
+        error_message='Title must be 10-200 characters'
+    ),
+    ValidationRule(
+        field='image_url',
+        validation_type='url',
+        error_message='Invalid image URL'
+    ),
+]
 
-- **200**: Successful request
-- **400**: Bad request (invalid input)
-- **401**: Unauthorized (missing/invalid API key)
-- **422**: Unprocessable entity (validation failed)
-- **500**: Internal server error
+# Create schema
+schema = ValidationSchema(name='Custom E-commerce', rules=rules)
 
-## 📊 JSON-LD Schema Examples
+# Analyze with schema
+analyzer = FeedAnalyzer()
+results = analyzer.analyze('products.json', schema=schema)
 
-### Basic Product Schema
-
-```json
-{
-  "@context": "https://schema.org",
-  "@type": "Product",
-  "name": "Wireless Bluetooth Headphones",
-  "description": "Premium wireless headphones with active noise cancellation",
-  "image": "https://example.com/images/headphones.jpg",
-  "brand": {
-    "@type": "Brand",
-    "name": "AudioTech"
-  },
-  "price": "149.99",
-  "priceCurrency": "USD",
-  "availability": "https://schema.org/InStock",
-  "review": {
-    "@type": "Review",
-    "ratingValue": "4.5",
-    "reviewRating": {
-      "@type": "Rating",
-      "ratingValue": "4.5",
-      "bestRating": "5",
-      "worstRating": "1"
-    },
-    "reviewCount": "328"
-  }
-}
+# Show validation details
+for issue in results.issues:
+    print(f"SKU: {issue.product_id}")
+    print(f"Field: {issue.field}")
+    print(f"Error: {issue.message}")
 ```
 
-### Product with Aggregate Rating
+### Example 5: Real-time Feed Monitoring
 
-```json
-{
-  "@context": "https://schema.org",
-  "@type": "Product",
-  "name": "Smart Watch Pro",
-  "image": "https://example.com/smartwatch.jpg",
-  "description": "Advanced fitness tracking smartwatch",
-  "brand": {
-    "@type": "Brand",
-    "name": "TechBrand"
-  },
-  "price": "299.99",
-  "priceCurrency": "USD",
-  "aggregateRating": {
-    "@type": "AggregateRating",
-    "ratingValue": "4.6",
-    "ratingCount": "1250",
-    "bestRating": "5",
-    "worstRating": "1"
-  },
-  "offers": {
-    "@type": "Offer",
-    "url": "https://example.com/buy/smartwatch",
-    "priceCurrency": "USD",
-    "price": "299.99",
-    "availability": "https://schema.org/InStock",
-    "seller": {
-      "@type": "Organization",
-      "name": "Example Store"
-    }
-  }
-}
+```python
+from productfeedreview import FeedMonitor, AlertManager
+import logging
+
+# Setup monitoring
+monitor = FeedMonitor(
+    feed_url='https://example.com/feed.xml',
+    check_interval=3600,  # Check every hour
+    quality_threshold=85
+)
+
+# Setup alerts
+alert_manager = AlertManager()
+alert_manager.add_email_alert('admin@example.com')
+alert_manager.add_webhook_alert('https://example.com/webhook')
+
+# Start monitoring
+monitor.start()
+
+# Listen for issues
+@monitor.on_quality_drop
+def handle_quality_drop(feed_name, quality_score):
+    logging.warning(f"Feed '{feed_name}' quality dropped to {quality_score}%")
+    alert_manager.send_alert(
+        level='warning',
+        message=f"Quality alert for {feed_name}",
+        details={'quality_score': quality_score}
+    )
+
+@monitor.on_critical_issue
+def handle_critical_issue(issue):
+    logging.error(f"Critical issue detected: {issue}")
+    alert_manager.send_alert(
+        level='critical',
+        message='Critical issue in feed',
+        details=issue
+    )
+
+# Keep running
+monitor.wait()
 ```
 
-### Product with Multiple Offers
+---
 
-```json
-{
-  "@context": "https://schema.org",
-  "@type": "Product",
-  "name": "Laptop Computer",
-  "brand": {
-    "@type": "Brand",
-    "name": "CompanyName"
-  },
-  "image": "https://example.com/laptop.jpg",
-  "description": "High-performance laptop for professionals",
-  "offers": [
-    {
-      "@type": "Offer",
-      "url": "https://retailer1.com/laptop",
-      "priceCurrency": "USD",
-      "price": "999.99",
-      "availability": "https://schema.org/InStock",
-      "seller": {
-        "@type": "Organization",
-        "name": "Retailer One"
-      }
-    },
-    {
-      "@type": "Offer",
-      "url": "https://retailer2.com/laptop",
-      "priceCurrency": "USD",
-      "price": "1049.99",
-      "availability": "https://schema.org/InStock",
-      "seller": {
-        "@type": "Organization",
-        "name": "Retailer Two"
-      }
-    }
-  ]
-}
-```
-
-## ✅ Validation and Error Handling
-
-### Common Validation Errors
-
-#### Missing Required Fields
-
-**Error Message:**
-```
-MISSING_REQUIRED_FIELD: Field 'name' is required but not provided
-Severity: ERROR
-Fix: Add 'name' field to your schema
-```
-
-**Example Fix:**
-```json
-{
-  "@type": "Product",
-  "name": "Product Name",  // ADDED
-  "price": "99.99"
-}
-```
-
-#### Invalid Type
-
-**Error Message:**
-```
-INVALID_TYPE: Field 'price' should be 'number' but got 'string'
-Severity: ERROR
-Current Value: "99.99"
-Expected Type: number
-```
-
-**Example Fix:**
-```json
-{
-  "price": 99.99  // Changed from string to number
-}
-```
-
-#### Malformed URL
-
-**Error Message:**
-```
-INVALID_URL: Field 'image' contains invalid URL format
-Severity: WARNING
-Current Value: "not-a-url"
-Suggested Format: "https://example.com/image.jpg"
-```
-
-**Example Fix:**
-```json
-{
-  "image": "https://example.com/product-image.jpg"
-}
-```
-
-### Validation Examples
-
-#### Successful Validation
-
-```bash
-curl -X POST http://localhost:5000/api/validate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "schema": {
-      "@context": "https://schema.org",
-      "@type": "Product",
-      "name": "Wireless Headphones",
-      "price": 99.99,
-      "priceCurrency": "USD",
-      "image": "https://example.com/headphones.jpg"
-    },
-    "validate_chatgpt": true
-  }'
-```
-
-**Response:**
-```json
-{
-  "valid": true,
-  "validation_type": "COMPREHENSIVE",
-  "errors": [],
-  "warnings": [],
-  "recommendations": [
-    "Consider adding 'brand' field for better product identification",
-    "Add 'availability' field to indicate stock status",
-    "Include 'description' for better product context"
-  ],
-  "summary": "Schema is valid according to ChatGPT Product Feed Specification"
-}
-```
-
-#### Failed Validation
-
-```bash
-curl -X POST http://localhost:5000/api/validate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "schema": {
-      "@context": "https://schema.org",
-      "@type": "Product",
-      "price": "not_a_number"
-    },
-    "validate_chatgpt": true
-  }'
-```
-
-**Response:**
-```json
-{
-  "valid": false,
-  "validation_type": "COMPREHENSIVE",
-  "errors": [
-    {
-      "field": "name",
-      "message": "MISSING_REQUIRED_FIELD: 'name' is required",
-      "severity": "ERROR",
-      "fix": "Add 'name' field to your schema"
-    },
-    {
-      "field": "price",
-      "message": "INVALID_TYPE: 'price' should be number but got string",
-      "severity": "ERROR",
-      "fix": "Change price value to a number without quotes"
-    },
-    {
-      "field": "priceCurrency",
-      "message": "MISSING_REQUIRED_FIELD: 'priceCurrency' is required",
-      "severity": "ERROR",
-      "fix": "Add 'priceCurrency' field (e.g., 'USD', 'EUR')"
-    },
-    {
-      "field": "image",
-      "message": "MISSING_REQUIRED_FIELD: 'image' is required",
-      "severity": "ERROR",
-      "fix": "Add valid product image URL"
-    }
-  ],
-  "warnings": [],
-  "recommendations": [
-    "Complete all required fields before proceeding",
-    "Validate data types match the specification"
-  ],
-  "summary": "Schema has 4 critical errors that must be fixed"
-}
-```
-
-### Recommendations Engine
-
-The validator provides intelligent recommendations:
-
-```json
-{
-  "recommendations": [
-    {
-      "field": "brand",
-      "type": "ENHANCEMENT",
-      "priority": "HIGH",
-      "message": "Adding 'brand' field helps with product differentiation",
-      "example": {
-        "@type": "Brand",
-        "name": "Your Brand Name"
-      }
-    },
-    {
-      "field": "aggregateRating",
-      "type": "SEO_IMPROVEMENT",
-      "priority": "MEDIUM",
-      "message": "Aggregate ratings improve search visibility",
-      "example": {
-        "@type": "AggregateRating",
-        "ratingValue": "4.5",
-        "ratingCount": "123"
-      }
-    },
-    {
-      "field": "availability",
-      "type": "BEST_PRACTICE",
-      "priority": "HIGH",
-      "message": "Availability status helps users understand product stock",
-      "example": "https://schema.org/InStock"
-    }
-  ]
-}
-```
-
-## 🎓 ChatGPT Product Feed Specification
-
-### Compliance Requirements
-
-Product Feed Review validates against the ChatGPT Product Feed Specification, which includes:
-
-#### Required Fields
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `@context` | URL | Schema.org context | "https://schema.org" |
-| `@type` | String | Must be "Product" | "Product" |
-| `name` | String | Product name | "Wireless Headphones" |
-| `description` | String | Product description | "High-quality audio" |
-| `price` | Number | Product price | 99.99 |
-| `priceCurrency` | String | ISO 4217 currency code | "USD" |
-| `image` | String/Array | Product image URL(s) | "https://example.com/image.jpg" |
-
-#### Recommended Fields
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `brand` | Object/String | Product brand | { "@type": "Brand", "name": "BrandName" } |
-| `availability` | URL | Stock availability | "https://schema.org/InStock" |
-| `aggregateRating` | Object | Aggregate ratings | { "@type": "AggregateRating", "ratingValue": 4.5 } |
-| `review` | Array | Product reviews | [{ "@type": "Review", "ratingValue": "5" }] |
-| `url` | URL | Product URL | "https://example.com/product" |
-| `offers` | Object/Array | Purchase options | [{ "@type": "Offer", "price": "99.99" }] |
-
-#### Best Practices for ChatGPT Compatibility
-
-1. **Always include product images** - Multiple images for better representation
-2. **Use structured pricing** - Always separate price and currency
-3. **Add ratings and reviews** - Improves product credibility
-4. **Include brand information** - Helps product identification
-5. **Specify availability** - Indicates stock status to users
-6. **Use valid URLs** - All URLs must be properly formatted and accessible
-
-### Validation Checklist
-
-- [ ] Schema includes `@context: "https://schema.org"`
-- [ ] `@type` is set to "Product"
-- [ ] All required fields are present and non-empty
-- [ ] Field values match their expected types
-- [ ] URLs are valid and properly formatted
-- [ ] Currency codes follow ISO 4217 standard
-- [ ] Price is a valid number
-- [ ] Image URLs are accessible and return valid images
-- [ ] Rating values are between 0 and 5
-- [ ] Review count is a positive integer
-
-## 🏆 Best Practices
-
-### 1. Schema Organization
-
-**Good Practice:**
-```json
-{
-  "@context": "https://schema.org",
-  "@type": "Product",
-  "name": "Clear Product Name",
-  "description": "Detailed product description...",
-  "image": ["https://example.com/image1.jpg", "https://example.com/image2.jpg"],
-  "brand": {
-    "@type": "Brand",
-    "name": "Brand Name"
-  },
-  "price": 99.99,
-  "priceCurrency": "USD",
-  "availability": "https://schema.org/InStock"
-}
-```
-
-**Avoid:**
-```json
-{
-  "@type": "Product",
-  "name": "Product",
-  "price": "99.99",  // Should be number, not string
-  "image": "url1, url2"  // Should be array, not comma-separated string
-}
-```
-
-### 2. Image Best Practices
-
-- **Size**: Provide multiple image sizes (thumbnail, medium, large)
-- **Format**: Use web-friendly formats (JPEG, PNG, WebP)
-- **Quantity**: Include at least 3 high-quality images
-- **Accessibility**: Add alt text descriptions
-- **Hosting**: Use reliable, fast-loading image servers
-
-**Example:**
-```json
-{
-  "image": [
-    "https://example.com/images/product-main.jpg",
-    "https://example.com/images/product-side1.jpg",
-    "https://example.com/images/product-side2.jpg",
-    "https://example.com/images/product-detail.jpg"
-  ]
-}
-```
-
-### 3. Pricing Best Practices
-
-- **Always separate price and currency** - Never combine in one field
-- **Use numeric values** - No currency symbols in price field
-- **Update regularly** - Keep prices current and accurate
-- **Show all fees** - Include shipping, taxes when applicable
-- **Compare with competitors** - Ensure competitive pricing
-
-**Example:**
-```json
-{
-  "price": 99.99,
-  "priceCurrency": "USD",
-  "offers": {
-    "@type": "Offer",
-    "price": "99.99",
-    "priceCurrency": "USD",
-    "shippingPrice": {
-      "price": "10.00",
-      "priceCurrency": "USD"
-    }
-  }
-}
-```
-
-### 4. Description Best Practices
-
-- **Be specific and detailed** - Minimum 100 characters
-- **Highlight key features** - What makes it unique
-- **Use clear language** - Avoid jargon
-- **Include specifications** - Size, material, color, etc.
-- **Add benefits** - Why customers should buy
-
-**Example:**
-```json
-{
-  "description": "Premium wireless headphones featuring active noise cancellation, 30-hour battery life, premium sound quality with 40mm drivers, Bluetooth 5.0 connectivity, built-in microphone for calls, and comfortable over-ear design. Perfect for music enthusiasts and professionals."
-}
-```
-
-### 5. Ratings and Reviews
-
-- **Include aggregate ratings** - Overall product rating
-- **Show review count** - Number of reviews backing the rating
-- **Add individual reviews** - Real customer feedback
-- **Update regularly** - Keep ratings current
-- **Encourage reviews** - More reviews = higher trust
-
-**Example:**
-```json
-{
-  "aggregateRating": {
-    "@type": "AggregateRating",
-    "ratingValue": "4.7",
-    "ratingCount": "542",
-    "bestRating": "5",
-    "worstRating": "1"
-  },
-  "review": [
-    {
-      "@type": "Review",
-      "author": "John Doe",
-      "datePublished": "2025-12-20",
-      "reviewRating": {
-        "@type": "Rating",
-        "ratingValue": "5",
-        "bestRating": "5",
-        "worstRating": "1"
-      },
-      "reviewBody": "Excellent product! Exceeded my expectations."
-    }
-  ]
-}
-```
-
-### 6. Availability Management
-
-- **Use standard schema.org values**:
-  - `https://schema.org/InStock` - Item is available
-  - `https://schema.org/OutOfStock` - Item is unavailable
-  - `https://schema.org/PreOrder` - Item available for pre-order
-  - `https://schema.org/BackOrder` - Item can be back-ordered
-
-- **Include stock quantity** - Helps with inventory management
-- **Add delivery information** - Expected delivery date/timeframe
-
-**Example:**
-```json
-{
-  "availability": "https://schema.org/InStock",
-  "inventoryLevel": {
-    "@type": "QuantitativeValue",
-    "value": 145
-  },
-  "shippingDetails": {
-    "@type": "ShippingDeliveryTime",
-    "handlingTime": {
-      "@type": "QuantitativeValue",
-      "unitCode": "DAY",
-      "value": "1"
-    },
-    "transitTime": {
-      "@type": "QuantitativeValue",
-      "unitCode": "DAY",
-      "value": "2"
-    }
-  }
-}
-```
-
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Common Issues and Solutions
 
-#### Issue 1: "Invalid JSON Syntax"
+#### Issue 1: Installation Fails with Dependency Errors
 
-**Symptoms:** Validation fails immediately with parsing error
-
-**Causes:**
-- Trailing commas in JSON
-- Missing quotes around strings
-- Invalid escape sequences
-- Unmatched braces or brackets
+**Error:**
+```
+ERROR: Could not find a version that satisfies the requirement...
+```
 
 **Solution:**
 ```bash
-# Validate JSON syntax using Python
-python -m json.tool your_schema.json
+# Upgrade pip first
+pip install --upgrade pip setuptools wheel
 
-# Or use online validators
-# https://jsonlint.com/
-# https://www.jsonschemavalidator.com/
+# Clear pip cache
+pip cache purge
+
+# Install with explicit version constraints
+pip install -r requirements.txt --no-cache-dir
 ```
 
-**Example Fix:**
-```json
-// WRONG - Trailing comma
-{
-  "name": "Product",
-  "price": 99.99,  // ← Trailing comma
-}
+#### Issue 2: Feed Not Being Recognized
 
-// CORRECT
-{
-  "name": "Product",
-  "price": 99.99
-}
+**Error:**
 ```
-
-#### Issue 2: "Missing Required Field: name"
-
-**Symptoms:** Validation fails with missing field error
-
-**Causes:**
-- Field name is missing entirely
-- Field is empty string or null
-- Field name has typo (case-sensitive)
-
-**Solution:**
-```json
-// Check field names are exact (case-sensitive)
-// ChatGPT spec expects lowercase camelCase
-
-{
-  "Name": "Product"  // ❌ WRONG - capital N
-}
-
-{
-  "name": "Product"  // ✅ CORRECT
-}
+ERROR: Could not auto-detect feed format
 ```
-
-#### Issue 3: "Invalid Price Format"
-
-**Symptoms:** Price validation fails
-
-**Causes:**
-- Price is a string instead of number
-- Price contains currency symbols
-- Price has incorrect decimal places
-- Price is negative
-
-**Solution:**
-```json
-// WRONG - Multiple issues
-{
-  "price": "$99.99",     // String with symbol
-  "price": "99,99"       // Wrong decimal separator
-  "price": "-50.00"      // Negative price
-}
-
-// CORRECT
-{
-  "price": 99.99         // Number, no symbol
-}
-```
-
-#### Issue 4: "Invalid Image URL"
-
-**Symptoms:** Image validation fails or images don't load
-
-**Causes:**
-- URL is malformed
-- URL is not accessible
-- URL uses incorrect protocol (http vs https)
-- Image file format not supported
-
-**Solution:**
-```bash
-# Test URL accessibility
-curl -I https://example.com/image.jpg
-
-# Check for proper HTTPS
-# Ensure .jpg, .png, .webp extensions
-# Verify file exists and is not a redirect
-```
-
-**Example Fix:**
-```json
-// WRONG
-{
-  "image": "example.com/image.jpg"        // Missing protocol
-}
-
-// CORRECT
-{
-  "image": "https://example.com/image.jpg"  // Valid HTTPS URL
-}
-```
-
-#### Issue 5: "Invalid Currency Code"
-
-**Symptoms:** Currency validation fails
-
-**Causes:**
-- Currency code is not ISO 4217 compliant
-- Lowercase or mixed case currency codes
-- Typos in currency abbreviation
-
-**Solution:**
-```json
-// WRONG
-{
-  "priceCurrency": "usd"      // Lowercase
-  "priceCurrency": "DOLLARS"  // Not ISO 4217
-}
-
-// CORRECT
-{
-  "priceCurrency": "USD"      // ISO 4217 uppercase
-}
-```
-
-**Common ISO 4217 Codes:**
-- USD - US Dollar
-- EUR - Euro
-- GBP - British Pound
-- JPY - Japanese Yen
-- CAD - Canadian Dollar
-- AUD - Australian Dollar
-- CHF - Swiss Franc
-- CNY - Chinese Yuan
-
-#### Issue 6: "Invalid Rating Value"
-
-**Symptoms:** Rating validation fails
-
-**Causes:**
-- Rating is outside 0-5 range
-- Rating is string instead of number
-- Rating count is negative or zero
-
-**Solution:**
-```json
-// WRONG
-{
-  "aggregateRating": {
-    "ratingValue": "8.5",     // Out of range (0-5)
-    "ratingCount": "-10"      // Negative count
-  }
-}
-
-// CORRECT
-{
-  "aggregateRating": {
-    "ratingValue": 4.5,       // Number between 0-5
-    "ratingCount": 542        // Positive integer
-  }
-}
-```
-
-#### Issue 7: "URL Not Accessible"
-
-**Symptoms:** Schema extraction from URL fails
-
-**Causes:**
-- URL is incorrect or has typos
-- Server is down or not responding
-- Request is blocked by CORS or firewall
-- URL requires authentication
-
-**Solution:**
-```bash
-# Test URL from command line
-curl -v https://example.com/product-feed
-
-# Check for CORS issues
-# Add proper user-agent if required
-# Check network connectivity
-```
-
-**Workaround:**
-```bash
-# Extract schema manually and use direct upload instead
-python custom_schema_tester.py --validate --file schema.json
-```
-
-#### Issue 8: "Connection Timeout"
-
-**Symptoms:** API requests timeout
-
-**Causes:**
-- Server is slow or overloaded
-- Network connectivity issues
-- Request payload too large
-- Server configuration limits
 
 **Solution:**
 ```python
-# Increase timeout in requests
-import requests
+# Explicitly specify format
+results = analyzer.analyze('products.txt', file_format='csv', delimiter='\t')
 
-response = requests.post(
-    'http://localhost:5000/api/validate',
-    json=payload,
-    timeout=30  # 30 seconds
-)
+# Or check file encoding
+import chardet
+with open('products.csv', 'rb') as f:
+    encoding = chardet.detect(f.read())['encoding']
+print(f"Detected encoding: {encoding}")
+
+# Use correct encoding
+results = analyzer.analyze('products.csv', encoding='iso-8859-1')
 ```
 
-**Prevention:**
-- Keep request payload under 1MB
-- Optimize server performance
-- Implement caching for repeated requests
-- Use connection pooling
+#### Issue 3: Memory Issues with Large Feeds
 
-### Debug Mode
-
-Enable debug mode for detailed error messages:
-
-```bash
-# Set environment variable
-export FLASK_ENV=development
-export FLASK_DEBUG=1
-
-# Run application
-python app.py
+**Error:**
+```
+MemoryError: Unable to allocate 2.50 GiB for an array...
 ```
 
-### Logging
-
-Enable detailed logging:
-
+**Solution:**
 ```python
-import logging
+# Use streaming mode for large files
+analyzer = FeedAnalyzer(streaming=True, chunk_size=5000)
+results = analyzer.analyze('large_feed.csv')
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+# Or process in batches
+from productfeedreview import BatchProcessor
+processor = BatchProcessor(batch_size=10000)
+results = processor.process_large_feed('large_feed.csv')
+```
+
+#### Issue 4: API Connection Timeout
+
+**Error:**
+```
+ConnectionError: Connection timeout after 30s
+```
+
+**Solution:**
+```python
+from productfeedreview.client import APIClient
+
+# Increase timeout
+client = APIClient(
+    api_key='your_key',
+    timeout=120,
+    retries=3,
+    backoff_factor=0.5
 )
 
-logger = logging.getLogger(__name__)
-logger.debug("Validation started for schema")
+# Or for direct feed analysis
+results = analyzer.analyze(
+    'https://example.com/feed.xml',
+    timeout=120,
+    verify_ssl=True
+)
+```
+
+#### Issue 5: Validation Rules Not Applied
+
+**Error:**
+```
+Validation passed but issues are still present
+```
+
+**Solution:**
+```python
+# Check schema is properly loaded
+print(f"Schema: {schema.name}")
+print(f"Rules: {schema.rules}")
+
+# Ensure rules are in correct order
+schema = ValidationSchema(
+    rules=sorted(rules, key=lambda r: r.priority, reverse=True)
+)
+
+# Validate schema itself
+schema.validate_schema()
+
+# Debug validation
+results = analyzer.analyze(
+    'products.csv',
+    schema=schema,
+    debug=True
+)
+```
+
+#### Issue 6: Docker Container Fails to Start
+
+**Error:**
+```
+docker: Error response from daemon: driver failed...
+```
+
+**Solution:**
+```bash
+# Check logs
+docker logs container_name
+
+# Build with correct base image
+docker build --build-arg BASE_IMAGE=python:3.9-slim -t productfeedreview .
+
+# Run with proper resource limits
+docker run -m 2g -c 512 productfeedreview
+
+# Check Docker daemon
+sudo systemctl restart docker
 ```
 
 ### Performance Optimization
 
-For large schemas or batch processing:
-
-```bash
-# Use threading for parallel validation
-python custom_schema_tester.py --batch --file schemas.jsonl --workers 4
-
-# Monitor resource usage
-top -p $(pgrep -f "python app.py")
-
-# Profile code
-python -m cProfile app.py
+#### For Large Feeds (>100MB):
+```python
+# Use streaming and parallel processing
+analyzer = FeedAnalyzer(
+    streaming=True,
+    chunk_size=10000,
+    workers=4,
+    cache_enabled=True
+)
 ```
 
-## 📝 License
+#### For Batch Operations:
+```python
+# Configure optimal batch settings
+processor = BatchProcessor(
+    batch_size=5000,
+    workers=8,
+    queue_size=100,
+    timeout=600
+)
+```
 
-This project is licensed under the MIT License - see LICENSE file for details.
+#### For API Server:
+```python
+# Use production server with multiple workers
+# uvicorn productfeedreview.api:app --workers 4 --loop uvloop
+```
 
-## 👥 Contributing
+### Debug Mode
 
-Contributions are welcome! Please follow these guidelines:
+```python
+import logging
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/improvement`)
-3. Commit changes (`git commit -am 'Add improvement'`)
-4. Push to branch (`git push origin feature/improvement`)
-5. Create Pull Request
+# Enable debug logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger('productfeedreview')
 
-## 📧 Support
-
-For support, questions, or bug reports:
-- Open an issue on GitHub
-- Contact: [your-email@example.com]
-- Documentation: Check the [Wiki](https://github.com/deepakgargct/productfeedreview/wiki)
-
-## 🔄 Version History
-
-### v1.0.0 (2026-01-06)
-- Initial release
-- ChatGPT schema validation
-- Custom schema testing
-- URL-based schema extraction
-- REST API endpoints
-- Web interface
+# Run with verbose output
+analyzer = FeedAnalyzer(debug=True, verbose=True)
+results = analyzer.analyze('products.csv')
+```
 
 ---
 
-**Last Updated:** 2026-01-06 12:33:12 UTC
-**Maintained by:** deepakgargct
+## Contributing
+
+We welcome contributions! Please follow these guidelines:
+
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/your-feature`)
+3. **Commit** your changes (`git commit -am 'Add new feature'`)
+4. **Push** to the branch (`git push origin feature/your-feature`)
+5. **Submit** a Pull Request
+
+### Development Setup
+
+```bash
+# Install development dependencies
+pip install -r requirements-dev.txt
+
+# Run tests
+pytest tests/ -v --cov=productfeedreview
+
+# Run linting
+flake8 productfeedreview/
+black productfeedreview/
+
+# Build documentation
+cd docs && make html
+```
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## Support
+
+- **Documentation**: [https://docs.productfeedreview.com](https://docs.productfeedreview.com)
+- **Issues**: [GitHub Issues](https://github.com/deepakgargct/productfeedreview/issues)
+- **Email**: support@productfeedreview.com
+- **Community**: [Discussions](https://github.com/deepakgargct/productfeedreview/discussions)
+
+---
+
+## Changelog
+
+### Version 1.0.0 (2026-01-06)
+- Initial release
+- Core feed analysis functionality
+- REST API implementation
+- Support for CSV, JSON, XML formats
+- Quality scoring and issue detection
+- Multiple export formats
+- Batch processing capabilities
+
+---
+
+**Last Updated**: January 6, 2026  
+**Maintained by**: [deepakgargct](https://github.com/deepakgargct)

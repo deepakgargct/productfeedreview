@@ -94,6 +94,12 @@ def call_validate_api(product_data: Dict) -> Dict:
     except requests.exceptions.ConnectionError:
         st.error("❌ Cannot connect to API server. Please ensure the API server is running on http://localhost:5000")
         return None
+    except requests.exceptions.HTTPError as e:
+        st.error(f"❌ HTTP Error {e.response.status_code}: {e.response.reason}")
+        return None
+    except requests.exceptions.Timeout:
+        st.error("❌ Request timed out. The server took too long to respond.")
+        return None
     except Exception as e:
         st.error(f"❌ Error calling API: {str(e)}")
         return None
@@ -120,6 +126,12 @@ def call_validate_feed_api(products: List[Dict] = None, file_data = None) -> Dic
         return response.json()
     except requests.exceptions.ConnectionError:
         st.error("❌ Cannot connect to API server. Please ensure the API server is running on http://localhost:5000")
+        return None
+    except requests.exceptions.HTTPError as e:
+        st.error(f"❌ HTTP Error {e.response.status_code}: {e.response.reason}")
+        return None
+    except requests.exceptions.Timeout:
+        st.error("❌ Request timed out. The server took too long to respond.")
         return None
     except Exception as e:
         st.error(f"❌ Error calling API: {str(e)}")

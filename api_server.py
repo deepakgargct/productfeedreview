@@ -18,8 +18,6 @@ CORS(app)
 app.config['JSON_SORT_KEYS'] = False
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
-
-
 def calculate_compliance_score(validation_result: ValidationResult) -> dict:
     """
     Calculate compliance score and categorize issues
@@ -42,7 +40,8 @@ def calculate_compliance_score(validation_result: ValidationResult) -> dict:
     
     for warning in validation_result.warnings:
         # Determine if this is a recommendation or warning
-        if warning.level.value == 'info':
+        from chatgpt_feed_validator import ValidationLevel
+        if warning.level == ValidationLevel.INFO:
             recommendations.append({
                 'field': warning.field,
                 'message': warning.message,

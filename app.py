@@ -1,624 +1,865 @@
-import streamlit as st
-import pandas as pd
+"""
+Product Feed Review Application
+Integrated ChatGPT Product Feed Specification with comprehensive validation and recommendations
+"""
+
+from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
 import json
-import requests
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse
-from datetime import datetime
-import re
-from typing import Dict, List, Optional, Tuple
 import logging
+from datetime import datetime
+from typing import Dict, List, Tuple, Any, Optional
+from enum import Enum
+import re
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
-# Configure Streamlit page
-st.set_page_config(
-    page_title="Product Schema Generator",
-    page_icon="🏷️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+app = Flask(__name__)
+CORS(app)
 
-# Custom CSS for better UI
-st.markdown("""
-    <style>
-        .main {
-            padding: 2rem;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-        .success-box {
-            padding: 1rem;
-            background-color: #d4edda;
-            border-radius: 0.5rem;
-            border-left: 4px solid #28a745;
-            margin: 1rem 0;
-        }
-        .error-box {
-            padding: 1rem;
-            background-color: #f8d7da;
-            border-radius: 0.5rem;
-            border-left: 4px solid #dc3545;
-            margin: 1rem 0;
-        }
-        .info-box {
-            padding: 1rem;
-            background-color: #d1ecf1;
-            border-radius: 0.5rem;
-            border-left: 4px solid #17a2b8;
-            margin: 1rem 0;
-        }
-    </style>
-""", unsafe_allow_html=True)
 
-class SchemaExtractor:
-    """Extract structured data and schemas from web pages"""
-    
-    def __init__(self, timeout: int = 10):
-        self.timeout = timeout
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-    
-    def fetch_page(self, url: str) -> Optional[str]:
-        """Fetch HTML content from URL"""
-        try:
-            response = requests.get(url, headers=self.headers, timeout=self.timeout)
-            response.raise_for_status()
-            return response.text
-        except requests.RequestException as e:
-            logger.error(f"Error fetching URL {url}: {str(e)}")
-            return None
-    
-    def extract_json_ld(self, html: str, url: str) -> List[Dict]:
-        """Extract JSON-LD structured data"""
-        try:
-            soup = BeautifulSoup(html, 'html.parser')
-            json_ld_scripts = soup.find_all('script', {'type': 'application/ld+json'})
-            schemas = []
-            
-            for script in json_ld_scripts:
-                try:
-                    data = json.loads(script.string)
-                    schemas.append(data)
-                except json.JSONDecodeError:
-                    continue
-            
-            return schemas
-        except Exception as e:
-            logger.error(f"Error extracting JSON-LD: {str(e)}")
-            return []
-    
-    def extract_og_tags(self, html: str) -> Dict[str, str]:
-        """Extract Open Graph meta tags"""
-        try:
-            soup = BeautifulSoup(html, 'html.parser')
-            og_data = {}
-            
-            og_tags = soup.find_all('meta', property=re.compile(r'^og:'))
-            for tag in og_tags:
-                property_name = tag.get('property', '').replace('og:', '')
-                content = tag.get('content', '')
-                og_data[property_name] = content
-            
-            return og_data
-        except Exception as e:
-            logger.error(f"Error extracting OG tags: {str(e)}")
-            return {}
-    
-    def extract_meta_tags(self, html: str) -> Dict[str, str]:
-        """Extract standard meta tags"""
-        try:
-            soup = BeautifulSoup(html, 'html.parser')
-            meta_data = {}
-            
-            meta_tags = soup.find_all('meta', attrs={'name': True})
-            for tag in meta_tags:
-                name = tag.get('name', '').lower()
-                content = tag.get('content', '')
-                if name and content:
-                    meta_data[name] = content
-            
-            return meta_data
-        except Exception as e:
-            logger.error(f"Error extracting meta tags: {str(e)}")
-            return {}
-    
-    def extract_product_data(self, html: str, url: str) -> Dict:
-        """Extract product-specific data"""
-        try:
-            soup = BeautifulSoup(html, 'html.parser')
-            product_data = {}
-            
-            # Extract title
-            title = soup.find('title')
-            if title:
-                product_data['title'] = title.string
-            
-            # Extract price (common patterns)
-            price_patterns = [
-                soup.find(class_=re.compile(r'price', re.I)),
-                soup.find(id=re.compile(r'price', re.I)),
-                soup.find('span', class_=re.compile(r'price', re.I))
-            ]
-            for elem in price_patterns:
-                if elem:
-                    product_data['price'] = elem.get_text(strip=True)
-                    break
-            
-            # Extract rating/reviews
-            rating_patterns = [
-                soup.find(class_=re.compile(r'rating|review', re.I)),
-                soup.find(id=re.compile(r'rating|review', re.I))
-            ]
-            for elem in rating_patterns:
-                if elem:
-                    product_data['rating'] = elem.get_text(strip=True)
-                    break
-            
-            # Extract images
-            images = []
-            img_tags = soup.find_all('img', limit=5)
-            for img in img_tags:
-                src = img.get('src', '')
-                if src and not src.endswith(('.gif', '.svg')):
-                    images.append(urljoin(url, src))
-            if images:
-                product_data['images'] = images
-            
-            return product_data
-        except Exception as e:
-            logger.error(f"Error extracting product data: {str(e)}")
-            return {}
-    
-    def validate_schema(self, schema: Dict) -> Tuple[bool, List[str]]:
-        """Validate schema structure"""
-        errors = []
-        
-        if not isinstance(schema, dict):
-            errors.append("Schema must be a dictionary")
-            return False, errors
-        
-        if '@type' not in schema:
-            errors.append("Missing required '@type' field")
-        
-        if '@context' not in schema:
-            errors.append("Missing recommended '@context' field")
-        
-        return len(errors) == 0, errors
-    
-    def create_product_schema(self, data: Dict) -> Dict:
-        """Create a valid Product schema.org schema"""
-        schema = {
-            "@context": "https://schema.org/",
-            "@type": "Product",
-            "name": data.get('name', 'Product Name'),
-            "description": data.get('description', ''),
-            "url": data.get('url', ''),
-            "image": data.get('image', []),
+class FieldType(Enum):
+    """Field type classifications"""
+    REQUIRED = "required"
+    RECOMMENDED = "recommended"
+    OPTIONAL = "optional"
+
+
+class ChatGPTSchemaValidator:
+    """
+    Comprehensive validator for ChatGPT Product Feed Specification
+    Validates required, recommended, and optional fields with intelligent recommendations
+    """
+
+    # ChatGPT Product Feed Schema Specification
+    SCHEMA = {
+        # Required Fields - Must be present for valid feed
+        "required_fields": {
+            "id": {
+                "type": "string",
+                "description": "Unique product identifier",
+                "validation": "non-empty string, max 100 chars",
+                "examples": ["SKU-12345", "PRODUCT-001"]
+            },
+            "title": {
+                "type": "string",
+                "description": "Product title/name",
+                "validation": "non-empty string, max 150 chars, no HTML",
+                "examples": ["Premium Wireless Headphones", "Organic Coffee Beans"]
+            },
+            "description": {
+                "type": "string",
+                "description": "Detailed product description",
+                "validation": "non-empty string, max 5000 chars",
+                "examples": ["High-quality audio with noise cancellation..."]
+            },
+            "price": {
+                "type": "number",
+                "description": "Product price in specified currency",
+                "validation": "positive number with up to 2 decimal places",
+                "examples": ["29.99", "1500.00"]
+            },
+            "currency": {
+                "type": "string",
+                "description": "Currency code (ISO 4217)",
+                "validation": "3-letter currency code",
+                "examples": ["USD", "EUR", "GBP"]
+            },
+            "availability": {
+                "type": "string",
+                "description": "Stock availability status",
+                "validation": "in_stock | out_of_stock | preorder",
+                "examples": ["in_stock", "preorder"]
+            },
+            "product_url": {
+                "type": "string",
+                "description": "Direct link to product page",
+                "validation": "valid URL format",
+                "examples": ["https://example.com/product/123"]
+            },
+            "image_url": {
+                "type": "string",
+                "description": "Primary product image URL",
+                "validation": "valid URL, preferably 1200x1200 or larger",
+                "examples": ["https://example.com/images/product-123.jpg"]
+            }
+        },
+
+        # Recommended Fields - Highly recommended for better visibility and conversion
+        "recommended_fields": {
+            "category": {
+                "type": "string",
+                "description": "Product category/classification",
+                "validation": "categorized in standard taxonomy",
+                "examples": ["Electronics > Audio", "Home > Kitchen"],
+                "impact": "Improves search filtering and discovery"
+            },
             "brand": {
-                "@type": "Brand",
-                "name": data.get('brand', '')
+                "type": "string",
+                "description": "Brand or manufacturer name",
+                "validation": "non-empty string, max 100 chars",
+                "examples": ["Sony", "Apple", "Samsung"],
+                "impact": "Enables brand-based filtering and trust signals"
             },
-            "offers": {
-                "@type": "Offer",
-                "price": data.get('price', '0'),
-                "priceCurrency": data.get('currency', 'USD'),
-                "availability": data.get('availability', 'https://schema.org/InStock'),
-                "url": data.get('url', '')
+            "sku": {
+                "type": "string",
+                "description": "Stock Keeping Unit",
+                "validation": "unique identifier, alphanumeric",
+                "examples": ["WH-1000XM4", "IPHONE-13-BLK"],
+                "impact": "Better inventory tracking and variant management"
             },
-            "aggregateRating": {
-                "@type": "AggregateRating",
-                "ratingValue": data.get('rating_value', '0'),
-                "reviewCount": data.get('review_count', '0')
+            "quantity": {
+                "type": "integer",
+                "description": "Quantity available in stock",
+                "validation": "non-negative integer",
+                "examples": ["100", "0", "500"],
+                "impact": "Real-time stock level visibility"
+            },
+            "sale_price": {
+                "type": "number",
+                "description": "Discounted price if on sale",
+                "validation": "positive number, less than regular price",
+                "examples": ["24.99", "899.00"],
+                "impact": "Highlights deals and promotions"
+            },
+            "condition": {
+                "type": "string",
+                "description": "Product condition",
+                "validation": "new | refurbished | used",
+                "examples": ["new", "refurbished"],
+                "impact": "Sets buyer expectations and trust"
+            },
+            "rating": {
+                "type": "number",
+                "description": "Average product rating",
+                "validation": "number between 0 and 5, max 1 decimal",
+                "examples": ["4.5", "3.8"],
+                "impact": "Social proof and conversion optimization"
+            },
+            "review_count": {
+                "type": "integer",
+                "description": "Number of customer reviews",
+                "validation": "non-negative integer",
+                "examples": ["150", "1000"],
+                "impact": "Credibility and review volume signal"
+            },
+            "additional_images": {
+                "type": "array",
+                "description": "Alternative product images",
+                "validation": "array of valid URLs",
+                "examples": ["URL1, URL2, URL3"],
+                "impact": "Enhanced visual presentation"
+            },
+            "attributes": {
+                "type": "object",
+                "description": "Key-value product attributes",
+                "validation": "JSON object with relevant specs",
+                "examples": ["color: blue, size: large, material: cotton"],
+                "impact": "Detailed product specification visibility"
+            },
+            "shipping_cost": {
+                "type": "number",
+                "description": "Shipping cost",
+                "validation": "non-negative number",
+                "examples": ["5.99", "0"],
+                "impact": "Total cost transparency"
+            },
+            "shipping_weight": {
+                "type": "number",
+                "description": "Product weight in kg",
+                "validation": "positive number",
+                "examples": ["2.5", "0.5"],
+                "impact": "Shipping cost estimation accuracy"
+            }
+        },
+
+        # Optional Fields - Nice to have for enhanced features
+        "optional_fields": {
+            "color": {
+                "type": "string",
+                "description": "Product color variant",
+                "examples": ["Black", "Blue", "Rose Gold"]
+            },
+            "size": {
+                "type": "string",
+                "description": "Product size",
+                "examples": ["Large", "XL", "10ft"]
+            },
+            "material": {
+                "type": "string",
+                "description": "Primary material composition",
+                "examples": ["Aluminum", "Leather", "Cotton"]
+            },
+            "dimensions": {
+                "type": "string",
+                "description": "Product dimensions (L x W x H)",
+                "examples": ["10cm x 5cm x 3cm"]
+            },
+            "warranty_months": {
+                "type": "integer",
+                "description": "Warranty duration in months",
+                "examples": ["12", "24"]
+            },
+            "upc": {
+                "type": "string",
+                "description": "Universal Product Code",
+                "examples": ["012345678905"]
+            },
+            "ean": {
+                "type": "string",
+                "description": "European Article Number",
+                "examples": ["5901234123457"]
+            },
+            "manufacturer": {
+                "type": "string",
+                "description": "Manufacturer name",
+                "examples": ["Sony Corporation", "Samsung Electronics"]
+            },
+            "supplier": {
+                "type": "string",
+                "description": "Product supplier/distributor",
+                "examples": ["XYZ Distributors"]
+            },
+            "keywords": {
+                "type": "array",
+                "description": "SEO keywords for discoverability",
+                "examples": ["wireless, headphones, noise-cancelling"]
+            },
+            "tags": {
+                "type": "array",
+                "description": "Product tags for categorization",
+                "examples": ["bestseller, new-arrival, eco-friendly"]
+            },
+            "expiration_date": {
+                "type": "string",
+                "description": "Product expiration date (YYYY-MM-DD)",
+                "examples": ["2026-12-31"]
+            },
+            "last_updated": {
+                "type": "string",
+                "description": "Last modification timestamp",
+                "examples": ["2026-01-06T12:39:38Z"]
+            },
+            "gtin": {
+                "type": "string",
+                "description": "Global Trade Item Number",
+                "examples": ["01234567890128"]
             }
         }
-        return schema
+    }
 
-class SchemaValidator:
-    """Validate and test schemas"""
-    
-    @staticmethod
-    def validate_json_structure(json_str: str) -> Tuple[bool, str, Optional[Dict]]:
-        """Validate JSON structure"""
-        try:
-            data = json.loads(json_str)
-            return True, "Valid JSON", data
-        except json.JSONDecodeError as e:
-            return False, f"Invalid JSON: {str(e)}", None
-    
-    @staticmethod
-    def validate_schema_type(schema: Dict) -> Tuple[bool, List[str]]:
-        """Validate schema type and required fields"""
-        errors = []
-        
-        schema_type = schema.get('@type', '')
-        
-        # Product schema validation
-        if schema_type == 'Product':
-            required_fields = ['name', 'offers']
-            for field in required_fields:
-                if field not in schema:
-                    errors.append(f"Missing required field for Product: {field}")
-            
-            if 'offers' in schema:
-                if not isinstance(schema['offers'], dict):
-                    errors.append("'offers' must be an object")
-                elif 'price' not in schema['offers']:
-                    errors.append("'offers' must contain 'price'")
-        
-        # Organization schema validation
-        elif schema_type == 'Organization':
-            if 'name' not in schema:
-                errors.append("Organization requires 'name' field")
-        
-        # LocalBusiness schema validation
-        elif schema_type == 'LocalBusiness':
-            required_fields = ['name', 'address']
-            for field in required_fields:
-                if field not in schema:
-                    errors.append(f"Missing required field for LocalBusiness: {field}")
-        
-        return len(errors) == 0, errors
-    
-    @staticmethod
-    def test_schema_compliance(schema: Dict) -> Dict:
-        """Test schema compliance"""
-        results = {
-            'has_context': '@context' in schema,
-            'has_type': '@type' in schema,
-            'type': schema.get('@type', 'Unknown'),
-            'field_count': len(schema),
-            'nested_objects': sum(1 for v in schema.values() if isinstance(v, dict)),
-            'arrays': sum(1 for v in schema.values() if isinstance(v, list))
+    def __init__(self):
+        """Initialize validator with schema"""
+        self.schema = self.SCHEMA
+        self.validation_results = {
+            "valid": False,
+            "errors": [],
+            "warnings": [],
+            "recommendations": [],
+            "field_analysis": {},
+            "score": 0
         }
+
+    def validate_product(self, product_data: Dict) -> Dict:
+        """
+        Validate complete product against ChatGPT specification
+        
+        Args:
+            product_data: Dictionary containing product information
+            
+        Returns:
+            Dictionary with validation results, recommendations, and analysis
+        """
+        self.validation_results = {
+            "valid": False,
+            "errors": [],
+            "warnings": [],
+            "recommendations": [],
+            "field_analysis": {},
+            "score": 0,
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+
+        # Validate required fields
+        self._validate_required_fields(product_data)
+
+        # Validate recommended fields
+        self._validate_recommended_fields(product_data)
+
+        # Validate optional fields
+        self._validate_optional_fields(product_data)
+
+        # Generate intelligent recommendations
+        self._generate_recommendations(product_data)
+
+        # Calculate completeness score
+        self._calculate_score(product_data)
+
+        # Set validity status
+        self.validation_results["valid"] = len(self.validation_results["errors"]) == 0
+
+        return self.validation_results
+
+    def _validate_required_fields(self, product_data: Dict) -> None:
+        """Validate all required fields"""
+        required = self.schema["required_fields"]
+        
+        for field_name, field_spec in required.items():
+            analysis = {
+                "type": FieldType.REQUIRED.value,
+                "present": field_name in product_data,
+                "value": product_data.get(field_name),
+                "specification": field_spec,
+                "issues": []
+            }
+
+            if field_name not in product_data:
+                error_msg = f"Required field '{field_name}' is missing. {field_spec['description']}"
+                self.validation_results["errors"].append({
+                    "field": field_name,
+                    "type": FieldType.REQUIRED.value,
+                    "message": error_msg
+                })
+                analysis["issues"].append("Missing required field")
+            else:
+                # Validate field content
+                field_issues = self._validate_field_content(
+                    field_name, 
+                    product_data[field_name], 
+                    field_spec
+                )
+                if field_issues:
+                    analysis["issues"].extend(field_issues)
+                    for issue in field_issues:
+                        self.validation_results["errors"].append({
+                            "field": field_name,
+                            "type": FieldType.REQUIRED.value,
+                            "message": issue
+                        })
+
+            self.validation_results["field_analysis"][field_name] = analysis
+
+    def _validate_recommended_fields(self, product_data: Dict) -> None:
+        """Validate recommended fields and flag missing ones"""
+        recommended = self.schema["recommended_fields"]
+        
+        for field_name, field_spec in recommended.items():
+            analysis = {
+                "type": FieldType.RECOMMENDED.value,
+                "present": field_name in product_data,
+                "value": product_data.get(field_name),
+                "specification": field_spec,
+                "impact": field_spec.get("impact", ""),
+                "issues": []
+            }
+
+            if field_name not in product_data:
+                warning_msg = f"Recommended field '{field_name}' is missing. {field_spec['description']}. Impact: {field_spec.get('impact', 'N/A')}"
+                self.validation_results["warnings"].append({
+                    "field": field_name,
+                    "type": FieldType.RECOMMENDED.value,
+                    "message": warning_msg
+                })
+            else:
+                # Validate field content
+                field_issues = self._validate_field_content(
+                    field_name,
+                    product_data[field_name],
+                    field_spec
+                )
+                if field_issues:
+                    analysis["issues"].extend(field_issues)
+                    for issue in field_issues:
+                        self.validation_results["warnings"].append({
+                            "field": field_name,
+                            "type": FieldType.RECOMMENDED.value,
+                            "message": issue
+                        })
+
+            self.validation_results["field_analysis"][field_name] = analysis
+
+    def _validate_optional_fields(self, product_data: Dict) -> None:
+        """Validate optional fields when present"""
+        optional = self.schema["optional_fields"]
+        
+        for field_name, field_spec in optional.items():
+            if field_name in product_data:
+                analysis = {
+                    "type": FieldType.OPTIONAL.value,
+                    "present": True,
+                    "value": product_data.get(field_name),
+                    "specification": field_spec,
+                    "issues": []
+                }
+
+                # Validate field content
+                field_issues = self._validate_field_content(
+                    field_name,
+                    product_data[field_name],
+                    field_spec
+                )
+                if field_issues:
+                    analysis["issues"].extend(field_issues)
+
+                self.validation_results["field_analysis"][field_name] = analysis
+
+    def _validate_field_content(self, field_name: str, value: Any, field_spec: Dict) -> List[str]:
+        """
+        Validate specific field content based on type and rules
+        
+        Args:
+            field_name: Name of the field
+            value: Field value to validate
+            field_spec: Field specification
+            
+        Returns:
+            List of validation issues found
+        """
+        issues = []
+        field_type = field_spec.get("type", "string")
+
+        # Type validation
+        if field_type == "string":
+            if not isinstance(value, str) or len(value.strip()) == 0:
+                issues.append(f"'{field_name}' must be a non-empty string")
+        elif field_type == "number":
+            try:
+                float(value)
+            except (TypeError, ValueError):
+                issues.append(f"'{field_name}' must be a valid number")
+        elif field_type == "integer":
+            try:
+                int(value)
+            except (TypeError, ValueError):
+                issues.append(f"'{field_name}' must be a valid integer")
+        elif field_type == "array":
+            if not isinstance(value, (list, str)):
+                issues.append(f"'{field_name}' must be an array or comma-separated string")
+        elif field_type == "object":
+            if not isinstance(value, dict):
+                issues.append(f"'{field_name}' must be a valid object/dictionary")
+
+        # Field-specific validation
+        if field_name == "price":
+            try:
+                price = float(value)
+                if price < 0:
+                    issues.append("Price must be a positive number")
+                if price > 0 and len(str(value).split('.')[-1]) > 2:
+                    issues.append("Price should have maximum 2 decimal places")
+            except:
+                pass
+
+        elif field_name == "rating":
+            try:
+                rating = float(value)
+                if rating < 0 or rating > 5:
+                    issues.append("Rating must be between 0 and 5")
+            except:
+                pass
+
+        elif field_name == "product_url" or field_name == "image_url":
+            if not self._is_valid_url(str(value)):
+                issues.append(f"'{field_name}' must be a valid URL")
+
+        elif field_name == "currency":
+            if len(str(value)) != 3 or not str(value).isupper():
+                issues.append("Currency must be a 3-letter ISO 4217 code (e.g., USD)")
+
+        elif field_name == "availability":
+            valid_values = ["in_stock", "out_of_stock", "preorder"]
+            if str(value).lower() not in valid_values:
+                issues.append(f"Availability must be one of: {', '.join(valid_values)}")
+
+        elif field_name == "condition":
+            valid_values = ["new", "refurbished", "used"]
+            if str(value).lower() not in valid_values:
+                issues.append(f"Condition must be one of: {', '.join(valid_values)}")
+
+        return issues
+
+    def _is_valid_url(self, url: str) -> bool:
+        """Validate URL format"""
+        url_pattern = re.compile(
+            r'^https?://'
+            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'
+            r'localhost|'
+            r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'
+            r'(?::\d+)?'
+            r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+        return url_pattern.match(url) is not None
+
+    def _generate_recommendations(self, product_data: Dict) -> None:
+        """Generate intelligent recommendations for improving the feed"""
+        recommendations = []
+
+        # Check for missing recommended fields
+        recommended = self.schema["recommended_fields"]
+        missing_recommended = [
+            field for field in recommended.keys() 
+            if field not in product_data
+        ]
+
+        if missing_recommended:
+            recommendations.append({
+                "priority": "high",
+                "category": "Missing Recommended Fields",
+                "fields": missing_recommended,
+                "message": f"Add {len(missing_recommended)} recommended fields to improve product visibility and conversion rates",
+                "action": "Include brand, category, rating, and review_count for better search performance"
+            })
+
+        # Price recommendations
+        if "sale_price" not in product_data and "price" in product_data:
+            try:
+                price = float(product_data["price"])
+                recommendations.append({
+                    "priority": "medium",
+                    "category": "Pricing Strategy",
+                    "fields": ["sale_price"],
+                    "message": "Consider adding a sale_price to highlight discounts",
+                    "action": "If product is on promotion, add sale_price field"
+                })
+            except:
+                pass
+
+        # Rating recommendations
+        if "rating" not in product_data or "review_count" not in product_data:
+            recommendations.append({
+                "priority": "high",
+                "category": "Social Proof",
+                "fields": ["rating", "review_count"],
+                "message": "Add ratings and review counts to build customer trust",
+                "action": "Include customer ratings and number of reviews for credibility"
+            })
+
+        # Image recommendations
+        if "image_url" in product_data and "additional_images" not in product_data:
+            recommendations.append({
+                "priority": "medium",
+                "category": "Visual Content",
+                "fields": ["additional_images"],
+                "message": "Add multiple product images for better visual presentation",
+                "action": "Include at least 3-5 additional images from different angles"
+            })
+
+        # Attribute recommendations
+        if "attributes" not in product_data:
+            recommendations.append({
+                "priority": "medium",
+                "category": "Product Details",
+                "fields": ["attributes"],
+                "message": "Add detailed product attributes for enhanced specifications",
+                "action": "Include color, size, material, dimensions, and other relevant specs"
+            })
+
+        # Stock level recommendations
+        if "quantity" not in product_data:
+            recommendations.append({
+                "priority": "medium",
+                "category": "Inventory",
+                "fields": ["quantity"],
+                "message": "Include stock quantity for real-time inventory visibility",
+                "action": "Add quantity field to show available stock"
+            })
+
+        # Keywords recommendations
+        if "keywords" not in product_data or "tags" not in product_data:
+            recommendations.append({
+                "priority": "low",
+                "category": "SEO Optimization",
+                "fields": ["keywords", "tags"],
+                "message": "Add keywords and tags for improved searchability",
+                "action": "Include relevant keywords and tags for better discovery"
+            })
+
+        # Description quality
+        if "description" in product_data:
+            desc_length = len(str(product_data["description"]))
+            if desc_length < 50:
+                recommendations.append({
+                    "priority": "high",
+                    "category": "Content Quality",
+                    "fields": ["description"],
+                    "message": "Product description is too short",
+                    "action": f"Expand description to at least 100 characters (currently {desc_length})"
+                })
+            elif desc_length > 5000:
+                recommendations.append({
+                    "priority": "low",
+                    "category": "Content Quality",
+                    "fields": ["description"],
+                    "message": "Product description is very long",
+                    "action": "Consider condensing the description while keeping key information"
+                })
+
+        self.validation_results["recommendations"] = recommendations
+
+    def _calculate_score(self, product_data: Dict) -> None:
+        """
+        Calculate product feed completeness score
+        
+        Score breakdown:
+        - Required fields: 60% weight
+        - Recommended fields: 30% weight
+        - Optional fields: 10% weight
+        """
+        required = self.schema["required_fields"]
+        recommended = self.schema["recommended_fields"]
+        optional = self.schema["optional_fields"]
+
+        # Calculate required field score
+        required_present = sum(1 for field in required.keys() if field in product_data)
+        required_score = (required_present / len(required)) * 60 if required else 0
+
+        # Calculate recommended field score
+        recommended_present = sum(1 for field in recommended.keys() if field in product_data)
+        recommended_score = (recommended_present / len(recommended)) * 30 if recommended else 0
+
+        # Calculate optional field score
+        optional_present = sum(1 for field in optional.keys() if field in product_data)
+        optional_score = (optional_present / len(optional)) * 10 if optional else 0
+
+        # Total score
+        total_score = min(100, required_score + recommended_score + optional_score)
+
+        self.validation_results["score"] = round(total_score, 2)
+        self.validation_results["field_coverage"] = {
+            "required": {
+                "present": required_present,
+                "total": len(required),
+                "percentage": round((required_present / len(required) * 100), 2) if required else 0
+            },
+            "recommended": {
+                "present": recommended_present,
+                "total": len(recommended),
+                "percentage": round((recommended_present / len(recommended) * 100), 2) if recommended else 0
+            },
+            "optional": {
+                "present": optional_present,
+                "total": len(optional),
+                "percentage": round((optional_present / len(optional) * 100), 2) if optional else 0
+            }
+        }
+
+    def get_field_details(self, field_name: str) -> Optional[Dict]:
+        """Get detailed information about a specific field"""
+        for category in ["required_fields", "recommended_fields", "optional_fields"]:
+            if field_name in self.schema[category]:
+                return {
+                    "field": field_name,
+                    "category": category.replace("_fields", ""),
+                    "specification": self.schema[category][field_name]
+                }
+        return None
+
+
+class ProductFeedReviewer:
+    """Main application logic for product feed review"""
+
+    def __init__(self):
+        self.validator = ChatGPTSchemaValidator()
+
+    def review_product(self, product_data: Dict) -> Dict:
+        """Review a single product against ChatGPT specification"""
+        return self.validator.validate_product(product_data)
+
+    def review_feed(self, products: List[Dict]) -> Dict:
+        """Review complete product feed"""
+        results = {
+            "total_products": len(products),
+            "valid_products": 0,
+            "invalid_products": 0,
+            "products": [],
+            "feed_summary": {
+                "avg_score": 0,
+                "critical_issues": 0,
+                "warnings": 0,
+                "common_issues": {}
+            }
+        }
+
+        all_scores = []
+        all_issues = {}
+
+        for idx, product in enumerate(products):
+            result = self.review_product(product)
+            results["products"].append({
+                "index": idx,
+                "product_id": product.get("id", f"Unknown-{idx}"),
+                "validation": result
+            })
+
+            if result["valid"]:
+                results["valid_products"] += 1
+            else:
+                results["invalid_products"] += 1
+
+            all_scores.append(result["score"])
+
+            # Track common issues
+            for error in result["errors"]:
+                field = error["field"]
+                all_issues[field] = all_issues.get(field, 0) + 1
+
+        # Calculate feed-level statistics
+        results["feed_summary"]["avg_score"] = round(sum(all_scores) / len(all_scores), 2) if all_scores else 0
+        results["feed_summary"]["critical_issues"] = results["invalid_products"]
+        results["feed_summary"]["warnings"] = sum(
+            len(p["validation"]["warnings"]) for p in results["products"]
+        )
+        results["feed_summary"]["common_issues"] = all_issues
+
         return results
 
-def main():
-    """Main application"""
-    
-    # Sidebar configuration
-    st.sidebar.title("⚙️ Configuration")
-    mode = st.sidebar.radio(
-        "Select Mode",
-        ["📥 URL Extraction", "✏️ Manual Schema Creation", "🧪 Schema Testing", "📊 Batch Processing"]
-    )
-    
-    st.markdown("""
-        <div class="header">
-            <h1>🏷️ Product Schema Generator</h1>
-            <p>Extract, create, and validate structured data schemas</p>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    # Initialize session state
-    if 'schemas' not in st.session_state:
-        st.session_state.schemas = []
-    if 'extracted_data' not in st.session_state:
-        st.session_state.extracted_data = {}
-    
-    # Mode: URL Extraction
-    if mode == "📥 URL Extraction":
-        st.header("Extract Schemas from URLs")
-        
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            url = st.text_input(
-                "Enter URL",
-                placeholder="https://example.com/product",
-                help="Full URL including https://"
-            )
-        with col2:
-            extract_btn = st.button("🔍 Extract", use_container_width=True)
-        
-        if extract_btn and url:
-            if not url.startswith(('http://', 'https://')):
-                st.error("❌ URL must start with http:// or https://")
-            else:
-                with st.spinner("Extracting schemas..."):
-                    extractor = SchemaExtractor()
-                    html = extractor.fetch_page(url)
-                    
-                    if html:
-                        st.markdown('<div class="success-box">✅ Page fetched successfully</div>', unsafe_allow_html=True)
-                        
-                        # Create tabs for different extraction types
-                        tab1, tab2, tab3, tab4 = st.tabs([
-                            "JSON-LD Schemas",
-                            "Open Graph Tags",
-                            "Meta Tags",
-                            "Product Data"
-                        ])
-                        
-                        with tab1:
-                            st.subheader("JSON-LD Structured Data")
-                            json_ld = extractor.extract_json_ld(html, url)
-                            
-                            if json_ld:
-                                for i, schema in enumerate(json_ld):
-                                    st.json(schema)
-                                    
-                                    col1, col2 = st.columns(2)
-                                    with col1:
-                                        if st.button(f"✅ Save Schema {i+1}", key=f"save_{i}"):
-                                            st.session_state.schemas.append(schema)
-                                            st.success(f"Schema {i+1} saved!")
-                                    with col2:
-                                        if st.button(f"📋 Copy JSON {i+1}", key=f"copy_{i}"):
-                                            st.code(json.dumps(schema, indent=2))
-                            else:
-                                st.info("ℹ️ No JSON-LD schemas found on this page")
-                        
-                        with tab2:
-                            st.subheader("Open Graph Metadata")
-                            og_data = extractor.extract_og_tags(html)
-                            
-                            if og_data:
-                                df_og = pd.DataFrame(list(og_data.items()), columns=['Property', 'Content'])
-                                st.dataframe(df_og, use_container_width=True)
-                            else:
-                                st.info("ℹ️ No Open Graph tags found")
-                        
-                        with tab3:
-                            st.subheader("Meta Tags")
-                            meta_data = extractor.extract_meta_tags(html)
-                            
-                            if meta_data:
-                                df_meta = pd.DataFrame(list(meta_data.items()), columns=['Name', 'Content'])
-                                st.dataframe(df_meta, use_container_width=True)
-                            else:
-                                st.info("ℹ️ No meta tags found")
-                        
-                        with tab4:
-                            st.subheader("Extracted Product Data")
-                            product_data = extractor.extract_product_data(html, url)
-                            
-                            if product_data:
-                                st.json(product_data)
-                            else:
-                                st.info("ℹ️ No product-specific data found")
-                    else:
-                        st.markdown('<div class="error-box">❌ Failed to fetch the page. Check URL and try again.</div>', unsafe_allow_html=True)
-    
-    # Mode: Manual Schema Creation
-    elif mode == "✏️ Manual Schema Creation":
-        st.header("Create Custom Schema")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            schema_type = st.selectbox(
-                "Schema Type",
-                ["Product", "Organization", "LocalBusiness", "Article", "BlogPosting", "Custom"]
-            )
-        with col2:
-            st.write("")
-        
-        schema_data = {}
-        
-        if schema_type == "Product":
-            col1, col2 = st.columns(2)
-            with col1:
-                schema_data['name'] = st.text_input("Product Name *")
-                schema_data['description'] = st.text_area("Description")
-                schema_data['brand'] = st.text_input("Brand Name")
-            with col2:
-                schema_data['url'] = st.text_input("Product URL")
-                schema_data['price'] = st.number_input("Price", min_value=0.0, step=0.01)
-                schema_data['currency'] = st.selectbox("Currency", ["USD", "EUR", "GBP", "INR"])
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                schema_data['rating_value'] = st.slider("Rating", 0.0, 5.0, 4.5)
-                schema_data['review_count'] = st.number_input("Review Count", min_value=0)
-            with col2:
-                schema_data['image'] = st.text_area("Image URLs (one per line)").split('\n') if st.text_area("Image URLs (one per line)", key="img") else []
-        
-        elif schema_type == "Organization":
-            col1, col2 = st.columns(2)
-            with col1:
-                schema_data['name'] = st.text_input("Organization Name *")
-                schema_data['url'] = st.text_input("Website URL")
-                schema_data['email'] = st.text_input("Email")
-            with col2:
-                schema_data['telephone'] = st.text_input("Telephone")
-                schema_data['location'] = st.text_input("Location")
-        
-        elif schema_type == "LocalBusiness":
-            col1, col2 = st.columns(2)
-            with col1:
-                schema_data['name'] = st.text_input("Business Name *")
-                schema_data['address'] = st.text_input("Address *")
-                schema_data['telephone'] = st.text_input("Telephone")
-            with col2:
-                schema_data['email'] = st.text_input("Email")
-                schema_data['latitude'] = st.number_input("Latitude")
-                schema_data['longitude'] = st.number_input("Longitude")
-        
-        else:
-            # Custom schema with JSON editor
-            schema_json = st.text_area(
-                "Enter Schema JSON",
-                value='{"@context": "https://schema.org/", "@type": "CustomType"}',
-                height=300
-            )
-        
-        if st.button("✅ Create Schema", use_container_width=True):
-            if schema_type == "Custom":
-                validator = SchemaValidator()
-                is_valid, msg, parsed = validator.validate_json_structure(schema_json)
-                if is_valid:
-                    schema_data = parsed
-                else:
-                    st.error(f"Invalid JSON: {msg}")
-                    return
-            else:
-                extractor = SchemaExtractor()
-                schema_data = extractor.create_product_schema(schema_data)
-            
-            st.session_state.schemas.append(schema_data)
-            st.success("✅ Schema created and saved!")
-            st.json(schema_data)
-    
-    # Mode: Schema Testing
-    elif mode == "🧪 Schema Testing":
-        st.header("Test and Validate Schemas")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Custom Schema Input")
-            schema_input = st.text_area(
-                "Paste Schema JSON",
-                height=300,
-                placeholder='{\n  "@context": "https://schema.org/",\n  "@type": "Product"\n}'
-            )
-        
-        with col2:
-            st.subheader("Validation Results")
-            
-            if schema_input:
-                validator = SchemaValidator()
-                is_valid, msg, parsed_schema = validator.validate_json_structure(schema_input)
-                
-                if is_valid:
-                    st.markdown('<div class="success-box">✅ Valid JSON Structure</div>', unsafe_allow_html=True)
-                    
-                    # Type validation
-                    is_type_valid, type_errors = validator.validate_schema_type(parsed_schema)
-                    if is_type_valid:
-                        st.markdown('<div class="success-box">✅ Schema Type Valid</div>', unsafe_allow_html=True)
-                    else:
-                        st.markdown('<div class="error-box">⚠️ Schema Type Errors</div>', unsafe_allow_html=True)
-                        for error in type_errors:
-                            st.write(f"• {error}")
-                    
-                    # Compliance test
-                    compliance = validator.test_schema_compliance(parsed_schema)
-                    st.subheader("Compliance Report")
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric("Schema Type", compliance['type'])
-                        st.metric("Total Fields", compliance['field_count'])
-                    with col2:
-                        st.metric("Nested Objects", compliance['nested_objects'])
-                        st.metric("Arrays", compliance['arrays'])
-                    
-                    # Detailed view
-                    st.subheader("Schema Details")
-                    st.json(parsed_schema)
-                    
-                    # Export options
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        if st.button("💾 Save Schema", use_container_width=True):
-                            st.session_state.schemas.append(parsed_schema)
-                            st.success("Schema saved!")
-                    with col2:
-                        json_str = json.dumps(parsed_schema, indent=2)
-                        st.download_button(
-                            "📥 Download JSON",
-                            data=json_str,
-                            file_name="schema.json",
-                            mime="application/json"
-                        )
-                    with col3:
-                        html_str = f"<script type='application/ld+json'>\n{json_str}\n</script>"
-                        st.download_button(
-                            "🌐 Download HTML",
-                            data=html_str,
-                            file_name="schema.html",
-                            mime="text/html"
-                        )
-                else:
-                    st.markdown(f'<div class="error-box">❌ {msg}</div>', unsafe_allow_html=True)
-    
-    # Mode: Batch Processing
-    elif mode == "📊 Batch Processing":
-        st.header("Batch Process Schemas")
-        
-        tab1, tab2 = st.tabs(["Upload CSV", "Manage Schemas"])
-        
-        with tab1:
-            st.subheader("Upload Product Data")
-            uploaded_file = st.file_uploader("Choose CSV file", type=['csv'])
-            
-            if uploaded_file:
-                try:
-                    df = pd.read_csv(uploaded_file)
-                    st.write("📊 Preview:")
-                    st.dataframe(df.head())
-                    
-                    if st.button("🔄 Generate Schemas from CSV"):
-                        extractor = SchemaExtractor()
-                        progress_bar = st.progress(0)
-                        status_text = st.empty()
-                        
-                        for idx, row in df.iterrows():
-                            schema_data = row.to_dict()
-                            schema = extractor.create_product_schema(schema_data)
-                            st.session_state.schemas.append(schema)
-                            
-                            progress = (idx + 1) / len(df)
-                            progress_bar.progress(progress)
-                            status_text.text(f"Processed {idx + 1}/{len(df)} rows")
-                        
-                        st.success(f"✅ Generated {len(df)} schemas!")
-                
-                except Exception as e:
-                    st.error(f"Error processing file: {str(e)}")
-        
-        with tab2:
-            st.subheader("Saved Schemas")
-            
-            if st.session_state.schemas:
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Total Schemas", len(st.session_state.schemas))
-                
-                for i, schema in enumerate(st.session_state.schemas):
-                    with st.expander(f"Schema {i+1}: {schema.get('@type', 'Unknown')}"):
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.json(schema)
-                        with col2:
-                            json_str = json.dumps(schema, indent=2)
-                            st.download_button(
-                                "📥 Download",
-                                data=json_str,
-                                file_name=f"schema_{i+1}.json",
-                                mime="application/json",
-                                key=f"download_{i}"
-                            )
-                
-                # Export all
-                if st.button("📦 Export All Schemas"):
-                    all_schemas = json.dumps(st.session_state.schemas, indent=2)
-                    st.download_button(
-                        "Download All",
-                        data=all_schemas,
-                        file_name="all_schemas.json",
-                        mime="application/json"
-                    )
-                
-                # Clear all
-                if st.button("🗑️ Clear All Schemas"):
-                    st.session_state.schemas = []
-                    st.rerun()
-            else:
-                st.info("ℹ️ No schemas saved yet. Create or extract schemas to see them here.")
-    
-    # Footer
-    st.divider()
-    st.markdown("""
-        <div style="text-align: center; color: gray; margin-top: 2rem;">
-            <p>Product Schema Generator v1.0 | Created on 2026-01-06</p>
-            <p>Supports schema.org structured data for SEO optimization</p>
-        </div>
-    """, unsafe_allow_html=True)
 
-if __name__ == "__main__":
-    main()
+# Initialize application
+reviewer = ProductFeedReviewer()
+
+
+# ============================================================================
+# FLASK ROUTES
+# ============================================================================
+
+@app.route('/', methods=['GET'])
+def index():
+    """Render main dashboard"""
+    return render_template('index.html')
+
+
+@app.route('/api/validate', methods=['POST'])
+def validate_product_api():
+    """API endpoint for product validation"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                "error": "No data provided",
+                "message": "Please provide product data in JSON format"
+            }), 400
+
+        result = reviewer.review_product(data)
+        
+        return jsonify({
+            "success": True,
+            "data": result
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Validation error: {str(e)}")
+        return jsonify({
+            "error": "Validation failed",
+            "message": str(e)
+        }), 500
+
+
+@app.route('/api/validate-feed', methods=['POST'])
+def validate_feed_api():
+    """API endpoint for batch feed validation"""
+    try:
+        data = request.get_json()
+        
+        if not data or not isinstance(data, list):
+            return jsonify({
+                "error": "Invalid data",
+                "message": "Please provide an array of products"
+            }), 400
+
+        result = reviewer.review_feed(data)
+        
+        return jsonify({
+            "success": True,
+            "data": result
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Feed validation error: {str(e)}")
+        return jsonify({
+            "error": "Feed validation failed",
+            "message": str(e)
+        }), 500
+
+
+@app.route('/api/schema', methods=['GET'])
+def get_schema():
+    """Get ChatGPT Product Feed Specification schema"""
+    try:
+        return jsonify({
+            "success": True,
+            "data": {
+                "required_fields": reviewer.validator.schema["required_fields"],
+                "recommended_fields": reviewer.validator.schema["recommended_fields"],
+                "optional_fields": reviewer.validator.schema["optional_fields"]
+            }
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Schema retrieval error: {str(e)}")
+        return jsonify({
+            "error": "Schema retrieval failed",
+            "message": str(e)
+        }), 500
+
+
+@app.route('/api/field-details/<field_name>', methods=['GET'])
+def get_field_details(field_name):
+    """Get detailed information about a specific field"""
+    try:
+        details = reviewer.validator.get_field_details(field_name)
+        
+        if not details:
+            return jsonify({
+                "error": "Field not found",
+                "message": f"Field '{field_name}' not found in ChatGPT Product Feed Specification"
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "data": details
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Field details error: {str(e)}")
+        return jsonify({
+            "error": "Field details retrieval failed",
+            "message": str(e)
+        }), 500
+
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "service": "Product Feed Review API"
+    }), 200
+
+
+@app.errorhandler(404)
+def not_found(error):
+    """Handle 404 errors"""
+    return jsonify({
+        "error": "Not found",
+        "message": "The requested endpoint does not exist"
+    }), 404
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    """Handle 500 errors"""
+    logger.error(f"Internal server error: {str(error)}")
+    return jsonify({
+        "error": "Internal server error",
+        "message": "An unexpected error occurred"
+    }), 500
+
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)

@@ -1,0 +1,38 @@
+[
+    {
+        "product_id": "JSON001",
+        "title": "Smart Watch Pro - Fitness Tracker",
+        "description": "Advanced fitness tracking smartwatch with heart rate monitor, GPS, and 7-day battery life",
+        "price": 299.99,
+        "currency": "USD",
+        "category": "electronics",
+        "availability": "in_stock",
+        "manufacturer": "TechBrand",
+        "image_url": "https://example.com/smartwatch.jpg",
+        "product_url": "https://example.com/products/smartwatch",
+        "rating": 4.6,
+        "review_count": 1250
+    },
+    {
+        "product_id": "JSON002",
+        "title": "Yoga Mat - Extra Thick Premium",
+        "description": "Premium non-slip yoga mat with extra cushioning for comfortable practice",
+        "price": 39.99,
+        "currency": "USD",
+        "category": "sports",
+        "availability": "in_stock",
+        "manufacturer": "FitGear",
+        "image_url": "https://example.com/yogamat.jpg",
+        "product_url": "https://example.com/products/yogamat",
+        "rating": 4.8
+    },
+    {
+        "product_id": "JSON003",
+        "title": "Invalid",
+        "description": "Bad",
+        "price": -50,
+        "currency": "NOTVALID",
+        "category": "something",
+        "availability": "unknown"
+    }
+]

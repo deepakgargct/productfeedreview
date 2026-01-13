@@ -1,95 +1,71 @@
 """
 Flask API Server with Validation Endpoints
-Provides endpoints for product feed review validation
+Provides endpoints for product feed review validation with compliance scoring
 """
 
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from datetime import datetime
-import re
-from typing import Dict, List, Tuple
+import pandas as pd
+import io
+import json
+from chatgpt_feed_validator import ChatGPTFeedValidator, ValidationResult, ValidationLevel
 
 app = Flask(__name__)
+CORS(app)
 
 # Configuration
 app.config['JSON_SORT_KEYS'] = False
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
-
-class ValidationError(Exception):
-    """Custom exception for validation errors"""
-    pass
-
-
-class FeedValidator:
-    """Validator class for product feed data"""
+def calculate_compliance_score(validation_result: ValidationResult) -> dict:
+    """
+    Calculate compliance score and categorize issues
     
-    @staticmethod
-    def validate_product_id(product_id: str) -> bool:
-        """Validate product ID format"""
-        if not product_id or not isinstance(product_id, str):
-            return False
-        return len(product_id) > 0 and len(product_id) <= 100
+    Returns:
+        dict with compliance_score, critical_issues, warnings, recommendations
+    """
+    # Categorize issues by severity
+    critical_issues = []
+    warnings = []
+    recommendations = []
     
-    @staticmethod
-    def validate_product_name(name: str) -> bool:
-        """Validate product name"""
-        if not name or not isinstance(name, str):
-            return False
-        return 1 <= len(name) <= 500
+    for issue in validation_result.issues:
+        critical_issues.append({
+            'field': issue.field,
+            'message': issue.message,
+            'suggestion': issue.suggestion,
+            'severity': 'CRITICAL'
+        })
     
-    @staticmethod
-    def validate_price(price) -> bool:
-        """Validate price format and value"""
-        try:
-            price_float = float(price)
-            return price_float >= 0
-        except (ValueError, TypeError):
-            return False
+    for warning in validation_result.warnings:
+        # Determine if this is a recommendation or warning
+        if warning.level == ValidationLevel.INFO:
+            recommendations.append({
+                'field': warning.field,
+                'message': warning.message,
+                'suggestion': warning.suggestion,
+                'action': warning.suggestion or f"Add {warning.field} for better compliance"
+            })
+        else:
+            warnings.append({
+                'field': warning.field,
+                'message': warning.message,
+                'suggestion': warning.suggestion,
+                'severity': 'WARNING'
+            })
     
-    @staticmethod
-    def validate_url(url: str) -> bool:
-        """Validate URL format"""
-        if not url or not isinstance(url, str):
-            return False
-        url_pattern = r'^https?://[^\s/$.?#].[^\s]*$'
-        return bool(re.match(url_pattern, url))
-    
-    @staticmethod
-    def validate_email(email: str) -> bool:
-        """Validate email format"""
-        if not email or not isinstance(email, str):
-            return False
-        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-        return bool(re.match(email_pattern, email))
-    
-    @staticmethod
-    def validate_feed_item(item: Dict) -> Tuple[bool, List[str]]:
-        """Validate a feed item and return validation status and error list"""
-        errors = []
-        
-        # Required fields validation
-        if 'product_id' not in item:
-            errors.append("Missing required field: product_id")
-        elif not FeedValidator.validate_product_id(item['product_id']):
-            errors.append("Invalid product_id format")
-        
-        if 'product_name' not in item:
-            errors.append("Missing required field: product_name")
-        elif not FeedValidator.validate_product_name(item['product_name']):
-            errors.append("Invalid product_name format")
-        
-        if 'price' not in item:
-            errors.append("Missing required field: price")
-        elif not FeedValidator.validate_price(item['price']):
-            errors.append("Invalid price format")
-        
-        # Optional fields validation
-        if 'url' in item and not FeedValidator.validate_url(item['url']):
-            errors.append("Invalid product URL format")
-        
-        if 'contact_email' in item and not FeedValidator.validate_email(item['contact_email']):
-            errors.append("Invalid contact email format")
-        
-        return len(errors) == 0, errors
+    return {
+        'compliance_score': round(validation_result.score, 2),
+        'compliance_percentage': f"{round(validation_result.score, 1)}%",
+        'critical_issues': critical_issues,
+        'warnings': warnings,
+        'recommendations': recommendations,
+        'is_compliant': validation_result.is_valid,
+        'total_issues': len(critical_issues),
+        'total_warnings': len(warnings),
+        'total_recommendations': len(recommendations)
+    }
 
 
 @app.route('/health', methods=['GET'])
@@ -98,171 +74,195 @@ def health_check():
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
-        'service': 'Product Feed Review API'
+        'service': 'Product Feed Review API',
+        'version': '2.0'
     }), 200
 
 
-@app.route('/api/validate/product', methods=['POST'])
+@app.route('/api/validate', methods=['POST'])
 def validate_product():
     """
-    Validate a single product item
+    Validate a single product with compliance scoring
     
     Expected JSON payload:
     {
         "product_id": "string",
-        "product_name": "string",
+        "title": "string",
+        "description": "string",
         "price": number,
-        "url": "string (optional)",
-        "contact_email": "string (optional)"
+        "currency": "string",
+        "category": "string",
+        "availability": "string",
+        ...
     }
+    
+    Returns:
+        Compliance score, critical issues, warnings, and recommendations
     """
     try:
         data = request.get_json()
         
         if not data:
             return jsonify({
-                'valid': False,
-                'errors': ['No JSON data provided']
+                'error': 'No JSON data provided',
+                'compliance_score': 0
             }), 400
         
-        is_valid, errors = FeedValidator.validate_feed_item(data)
+        # Create validator instance
+        validator = ChatGPTFeedValidator(strict_mode=False)
+        
+        # Validate the product
+        result = validator.validate_product(data)
+        
+        # Calculate compliance score and categorize issues
+        compliance_data = calculate_compliance_score(result)
         
         return jsonify({
-            'valid': is_valid,
-            'errors': errors,
+            'product_id': result.product_id,
+            'valid': result.is_valid,
+            'compliance_score': compliance_data['compliance_score'],
+            'compliance_percentage': compliance_data['compliance_percentage'],
+            'is_compliant': compliance_data['is_compliant'],
+            'critical_issues': compliance_data['critical_issues'],
+            'warnings': compliance_data['warnings'],
+            'recommendations': compliance_data['recommendations'],
+            'summary': {
+                'total_critical': compliance_data['total_issues'],
+                'total_warnings': compliance_data['total_warnings'],
+                'total_recommendations': compliance_data['total_recommendations']
+            },
             'timestamp': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         }), 200
     
     except Exception as e:
         return jsonify({
-            'valid': False,
-            'error': str(e),
+            'error': f'Validation error: {str(e)}',
+            'compliance_score': 0,
             'timestamp': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         }), 500
 
 
-@app.route('/api/validate/feed', methods=['POST'])
+@app.route('/api/validate-feed', methods=['POST'])
 def validate_feed():
     """
-    Validate a complete product feed (batch validation)
+    Validate batch CSV/JSON product feed with compliance scoring
     
-    Expected JSON payload:
-    {
-        "products": [
-            {
-                "product_id": "string",
-                "product_name": "string",
-                "price": number,
-                "url": "string (optional)",
-                "contact_email": "string (optional)"
-            },
-            ...
-        ]
-    }
+    Accepts:
+    - JSON array of products
+    - CSV file upload (multipart/form-data)
+    - JSON file upload (multipart/form-data)
+    
+    Returns:
+        Batch validation results with compliance summary
     """
     try:
-        data = request.get_json()
+        products = []
         
-        if not data or 'products' not in data:
-            return jsonify({
-                'valid': False,
-                'error': 'Missing "products" field in request'
-            }), 400
-        
-        products = data['products']
-        
-        if not isinstance(products, list):
-            return jsonify({
-                'valid': False,
-                'error': '"products" must be a list'
-            }), 400
-        
-        results = []
-        total_valid = 0
-        total_invalid = 0
-        
-        for idx, product in enumerate(products):
-            is_valid, errors = FeedValidator.validate_feed_item(product)
+        # Check if it's a file upload
+        if 'file' in request.files:
+            file = request.files['file']
             
-            results.append({
-                'index': idx,
-                'product_id': product.get('product_id', 'N/A'),
-                'valid': is_valid,
-                'errors': errors
+            if file.filename == '':
+                return jsonify({'error': 'No file selected'}), 400
+            
+            # Read file based on extension
+            if file.filename.endswith('.csv'):
+                # Parse CSV
+                df = pd.read_csv(io.StringIO(file.read().decode('utf-8')))
+                products = df.to_dict('records')
+            elif file.filename.endswith('.json'):
+                # Parse JSON
+                content = file.read().decode('utf-8')
+                data = json.loads(content)
+                if isinstance(data, list):
+                    products = data
+                elif isinstance(data, dict) and 'products' in data:
+                    products = data['products']
+                else:
+                    products = [data]
+            else:
+                return jsonify({'error': 'Unsupported file format. Use CSV or JSON'}), 400
+        
+        # Check if it's JSON in request body
+        elif request.is_json:
+            data = request.get_json()
+            
+            if isinstance(data, list):
+                products = data
+            elif isinstance(data, dict):
+                if 'products' in data:
+                    products = data['products']
+                else:
+                    # Single product
+                    products = [data]
+            else:
+                return jsonify({'error': 'Invalid JSON format'}), 400
+        else:
+            return jsonify({'error': 'No data provided. Send JSON or upload CSV/JSON file'}), 400
+        
+        if not products:
+            return jsonify({'error': 'No products found in the feed'}), 400
+        
+        # Validate all products
+        validator = ChatGPTFeedValidator(strict_mode=False)
+        feed_results = validator.validate_feed(products)
+        
+        # Calculate compliance for each product
+        detailed_results = []
+        total_compliance = 0
+        total_critical = 0
+        total_warnings = 0
+        total_recommendations = 0
+        compliant_count = 0
+        
+        for product_result in validator.validation_results:
+            compliance_data = calculate_compliance_score(product_result)
+            
+            detailed_results.append({
+                'product_id': product_result.product_id,
+                'valid': product_result.is_valid,
+                'compliance_score': compliance_data['compliance_score'],
+                'compliance_percentage': compliance_data['compliance_percentage'],
+                'critical_issues': compliance_data['critical_issues'],
+                'warnings': compliance_data['warnings'],
+                'recommendations': compliance_data['recommendations'],
+                'summary': {
+                    'total_critical': compliance_data['total_issues'],
+                    'total_warnings': compliance_data['total_warnings'],
+                    'total_recommendations': compliance_data['total_recommendations']
+                }
             })
             
-            if is_valid:
-                total_valid += 1
-            else:
-                total_invalid += 1
+            total_compliance += compliance_data['compliance_score']
+            total_critical += compliance_data['total_issues']
+            total_warnings += compliance_data['total_warnings']
+            total_recommendations += compliance_data['total_recommendations']
+            
+            if product_result.is_valid:
+                compliant_count += 1
+        
+        # Calculate overall compliance
+        avg_compliance = total_compliance / len(products) if products else 0
+        compliance_rate = (compliant_count / len(products) * 100) if products else 0
         
         return jsonify({
-            'summary': {
-                'total_items': len(products),
-                'valid_items': total_valid,
-                'invalid_items': total_invalid,
-                'validation_passed': total_invalid == 0
+            'batch_summary': {
+                'total_products': len(products),
+                'compliant_products': compliant_count,
+                'non_compliant_products': len(products) - compliant_count,
+                'compliance_rate': f"{round(compliance_rate, 1)}%",
+                'average_compliance_score': round(avg_compliance, 2),
+                'total_critical_issues': total_critical,
+                'total_warnings': total_warnings,
+                'total_recommendations': total_recommendations
             },
-            'results': results,
+            'products': detailed_results,
             'timestamp': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         }), 200
     
     except Exception as e:
         return jsonify({
-            'valid': False,
-            'error': str(e),
-            'timestamp': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-        }), 500
-
-
-@app.route('/api/validate/field/<field_type>', methods=['POST'])
-def validate_field(field_type):
-    """
-    Validate a specific field type
-    
-    Supported field_types: product_id, product_name, price, url, email
-    Expected JSON payload:
-    {
-        "value": "value to validate"
-    }
-    """
-    try:
-        data = request.get_json()
-        
-        if not data or 'value' not in data:
-            return jsonify({
-                'valid': False,
-                'error': 'Missing "value" field in request'
-            }), 400
-        
-        value = data['value']
-        validators = {
-            'product_id': FeedValidator.validate_product_id,
-            'product_name': FeedValidator.validate_product_name,
-            'price': FeedValidator.validate_price,
-            'url': FeedValidator.validate_url,
-            'email': FeedValidator.validate_email
-        }
-        
-        if field_type not in validators:
-            return jsonify({
-                'valid': False,
-                'error': f'Unknown field type: {field_type}. Supported types: {", ".join(validators.keys())}'
-            }), 400
-        
-        validator = validators[field_type]
-        is_valid = validator(value)
-        
-        return jsonify({
-            'field_type': field_type,
-            'valid': is_valid,
-            'timestamp': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-        }), 200
-    
-    except Exception as e:
-        return jsonify({
-            'valid': False,
-            'error': str(e),
+            'error': f'Feed validation error: {str(e)}',
             'timestamp': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         }), 500
 
@@ -272,15 +272,21 @@ def api_info():
     """Get information about available API endpoints"""
     return jsonify({
         'service': 'Product Feed Review API',
-        'version': '1.0.0',
+        'version': '2.0.0',
         'endpoints': {
             'GET /health': 'Health check endpoint',
             'GET /api/info': 'API information',
-            'POST /api/validate/product': 'Validate a single product',
-            'POST /api/validate/feed': 'Batch validate multiple products',
-            'POST /api/validate/field/<field_type>': 'Validate a specific field type'
+            'POST /api/validate': 'Validate a single product with compliance scoring',
+            'POST /api/validate-feed': 'Batch validate CSV/JSON product feeds'
         },
-        'supported_field_types': ['product_id', 'product_name', 'price', 'url', 'email'],
+        'features': [
+            'ChatGPT Product Specification compliance',
+            'Compliance score (0-100%)',
+            'Critical issue identification',
+            'Actionable recommendations',
+            'CSV and JSON batch processing',
+            'Detailed validation reports'
+        ],
         'timestamp': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     }), 200
 
@@ -306,3 +312,4 @@ def internal_error(error):
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
